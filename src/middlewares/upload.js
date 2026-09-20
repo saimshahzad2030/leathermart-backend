@@ -1,11 +1,21 @@
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
 import { env } from '../config/env.js';
 
-const uploadDirectory = path.resolve(process.cwd(), env.UPLOAD_DIR);
-if (!fs.existsSync(uploadDirectory)) {
-  fs.mkdirSync(uploadDirectory, { recursive: true });
+// In serverless environments (e.g. Vercel / AWS Lambda), process.cwd() is read-only (/var/task).
+// Use os.tmpdir() to prevent EROFS errors while maintaining diskStorage compatibility.
+export const uploadDirectory = env.isServerless
+  ? path.join(os.tmpdir(), env.UPLOAD_DIR)
+  : path.resolve(process.cwd(), env.UPLOAD_DIR);
+
+try {
+  if (!fs.existsSync(uploadDirectory)) {
+    fs.mkdirSync(uploadDirectory, { recursive: true });
+  }
+} catch (err) {
+  console.warn(`[WARN] Could not initialize upload directory at ${uploadDirectory}: ${err.message}`);
 }
 
 const storage = multer.diskStorage({

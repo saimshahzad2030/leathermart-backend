@@ -4,17 +4,24 @@ import { env } from '../config/env.js';
 import { logger } from '../utils/logger.js';
 
 const globalForPrisma = globalThis;
+const connectionUrl = (env.DATABASE_URL || process.env.DATABASE_URL || '').trim();
 
 export const prisma =
   globalForPrisma.prisma ||
   new PrismaClient({
-    datasourceUrl: env.DATABASE_URL || process.env.DATABASE_URL,
+    ...(connectionUrl ? { datasourceUrl: connectionUrl } : {}),
     log: env.isDev ? ['error', 'warn'] : ['error'],
   });
 
-if (!env.isProd) globalForPrisma.prisma = prisma;
+// Always cache Prisma instance on globalThis to prevent connection leaks across serverless warm invocations
+globalForPrisma.prisma = prisma;
 
 export async function checkPrismaConnection() {
+  if (!connectionUrl && !process.env.DATABASE_URL) {
+    const msg = 'DATABASE_URL environment variable is missing. Please configure it in Vercel project settings.';
+    logger.warn(msg);
+    return { connected: false, message: msg };
+  }
   try {
     await prisma.$queryRaw`SELECT 1`;
     return { connected: true, message: 'Connected to Supabase PostgreSQL (via Prisma)' };

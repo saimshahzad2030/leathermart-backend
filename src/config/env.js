@@ -33,4 +33,25 @@ export const env = {
   isDev: (process.env.NODE_ENV || 'development') === 'development',
   isTest: (process.env.NODE_ENV || '') === 'test',
   isProd: (process.env.NODE_ENV || '') === 'production',
+  isServerless: Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME),
 };
+
+export function validateProductionEnv() {
+  if (env.isProd || env.isServerless) {
+    const missing = [];
+    if (!env.DATABASE_URL) missing.push('DATABASE_URL');
+    if (!env.JWT_SECRET || env.JWT_SECRET === 'atelier_valenti_milano_secret_2026') {
+      missing.push('JWT_SECRET (using default secret in production is unsafe)');
+    }
+    if (missing.length > 0) {
+      console.warn(
+        `[WARN] Missing or insecure production environment variables detected: ${missing.join(
+          ', '
+        )}. Ensure these are configured in your Vercel Project Settings > Environment Variables.`
+      );
+    }
+  }
+}
+
+// Run non-blocking check on initialization
+validateProductionEnv();

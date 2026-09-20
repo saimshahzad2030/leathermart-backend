@@ -5,6 +5,7 @@ import compression from 'compression';
 import cookieParser from 'cookie-parser';
 import morgan from 'morgan';
 import path from 'path';
+import os from 'os';
 
 import { env } from './config/env.js';
 import routes from './routes/index.js';
@@ -30,6 +31,7 @@ const allowedOrigins = [
   'http://localhost:3001',
   'http://127.0.0.1:3000',
   'http://127.0.0.1:3001',
+  ...(process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',').map((s) => s.trim()) : []),
 ].filter(Boolean);
 
 app.use(
@@ -37,7 +39,12 @@ app.use(
     origin: (origin, callback) => {
       // Allow requests with no origin (like mobile apps, curl, server-to-server)
       if (!origin) return callback(null, true);
-      if (allowedOrigins.indexOf(origin) !== -1 || env.isDev || env.isTest) {
+      const isAllowed =
+        allowedOrigins.includes(origin) ||
+        origin.endsWith('.vercel.app') ||
+        env.isDev ||
+        env.isTest;
+      if (isAllowed) {
         return callback(null, true);
       }
       return callback(new Error('CORS policy: This origin is not allowed by Access-Control-Allow-Origin'));
@@ -63,7 +70,9 @@ if (!env.isTest) {
 app.use('/api', apiRateLimiter);
 
 // Serve static uploaded assets
-const uploadsDir = path.resolve(process.cwd(), env.UPLOAD_DIR);
+const uploadsDir = env.isServerless
+  ? path.join(os.tmpdir(), env.UPLOAD_DIR)
+  : path.resolve(process.cwd(), env.UPLOAD_DIR);
 app.use(`/${env.UPLOAD_DIR}`, express.static(uploadsDir));
 
 // Mount REST APIs
