@@ -1,0 +1,402 @@
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// 1. Admin Users Table
+model AdminUser {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email        String    @unique @db.VarChar(255)
+  passwordHash String    @map("password_hash") @db.VarChar(255)
+  firstName    String    @map("first_name") @db.VarChar(100)
+  lastName     String    @map("last_name") @db.VarChar(100)
+  role         String    @default("store_manager") @db.VarChar(50)
+  permissions  String[]  @default([])
+  isActive     Boolean   @default(true) @map("is_active")
+  lastLoginAt  DateTime? @map("last_login_at") @db.Timestamptz(6)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  refreshTokens RefreshToken[]
+
+  @@map("admin_users")
+}
+
+// 2. Refresh Tokens Table
+model RefreshToken {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  adminId   String   @map("admin_id") @db.Uuid
+  token     String   @unique
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  admin AdminUser @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([adminId])
+  @@map("refresh_tokens")
+}
+
+// 3. Categories Table
+model Category {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  slug           String    @unique @db.VarChar(100)
+  name           String    @db.VarChar(150)
+  subtitle       String?   @default("")
+  description    String?   @default("")
+  heroImage      String?   @default("") @map("hero_image")
+  featuredOrder  Int?      @default(0) @map("featured_order")
+  isPublished    Boolean?  @default(true) @map("is_published")
+  highlightSpecs String[]  @default([]) @map("highlight_specs")
+  seoTitle       String?   @map("seo_title")
+  seoDescription String?   @map("seo_description")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  products Product[]
+
+  @@map("categories")
+}
+
+// 4. Collections Table
+model Collection {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  slug        String    @unique @db.VarChar(100)
+  title       String    @db.VarChar(150)
+  season      String    @db.VarChar(100)
+  subtitle    String?   @default("")
+  description String?   @default("")
+  heroImage   String?   @default("") @map("hero_image")
+  badge       String?   @db.VarChar(50)
+  isActive    Boolean?  @default(true) @map("is_active")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  products Product[]
+
+  @@map("collections")
+}
+
+// 5. Products Table
+model Product {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sku              String    @unique @db.VarChar(50)
+  slug             String    @unique @db.VarChar(150)
+  name             String    @db.VarChar(200)
+  tagline          String?   @default("")
+  categorySlug     String    @map("category_slug") @db.VarChar(100)
+  categoryLabel    String?   @default("") @map("category_label") @db.VarChar(100)
+  collectionId     String?   @map("collection_id") @db.Uuid
+  gender           String?   @default("unisex") @db.VarChar(20)
+  styles           String[]  @default([])
+  leatherType      String    @map("leather_type") @db.VarChar(150)
+  hardware         String?   @default("")
+  lining           String?   @default("")
+  modelInfo        String?   @default("") @map("model_info")
+  description      String
+  editorialQuote   String?   @default("") @map("editorial_quote")
+  price            Decimal   @db.Decimal(10, 2)
+  salePrice        Decimal?  @map("sale_price") @db.Decimal(10, 2)
+  isFeatured       Boolean?  @default(false) @map("is_featured")
+  isBestseller     Boolean?  @default(false) @map("is_bestseller")
+  isNewArrival     Boolean?  @default(false) @map("is_new_arrival")
+  isPublished      Boolean?  @default(true) @map("is_published")
+  sortOrder        Int?      @default(0) @map("sort_order")
+  rating           Decimal?  @default(5.00) @db.Decimal(3, 2)
+  reviewCount      Int?      @default(0) @map("review_count")
+  specifications   String[]  @default([])
+  careInstructions String[]  @default([]) @map("care_instructions")
+  availableColors  Json?     @default("[]") @map("available_colors")
+  availableSizes   String[]  @default([]) @map("available_sizes")
+  seoTitle         String?   @map("seo_title")
+  seoDescription   String?   @map("seo_description")
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  category   Category       @relation(fields: [categorySlug], references: [slug], onUpdate: Cascade)
+  collection Collection?    @relation(fields: [collectionId], references: [id], onDelete: SetNull)
+  images     ProductImage[]
+  variants   ProductVariant[]
+  reviews    ProductReview[]
+
+  @@index([categorySlug])
+  @@index([collectionId])
+  @@index([isPublished])
+  @@index([gender])
+  @@index([isFeatured])
+  @@index([isBestseller])
+  @@index([isNewArrival])
+  @@map("products")
+}
+
+// 6. Product Images Table
+model ProductImage {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  productId String   @map("product_id") @db.Uuid
+  url       String
+  alt       String?  @default("")
+  isPrimary Boolean? @default(false) @map("is_primary")
+  isHover   Boolean? @default(false) @map("is_hover")
+  type      String?  @default("perspective") @db.VarChar(30)
+  sortOrder Int?     @default(0) @map("sort_order")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+  @@map("product_images")
+}
+
+// 7. Product Variants Table
+model ProductVariant {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  productId     String   @map("product_id") @db.Uuid
+  sku           String   @unique @db.VarChar(60)
+  size          String   @db.VarChar(30)
+  color         String   @db.VarChar(50)
+  colorHex      String   @map("color_hex") @db.VarChar(10)
+  stock         Int?     @default(0)
+  priceOverride Decimal? @map("price_override") @db.Decimal(10, 2)
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+  @@map("product_variants")
+}
+
+// 8. Product Reviews Table
+model ProductReview {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  productId  String   @map("product_id") @db.Uuid
+  author     String   @db.VarChar(100)
+  location   String   @db.VarChar(100)
+  rating     Int
+  title      String   @db.VarChar(200)
+  comment    String
+  verified   Boolean? @default(true)
+  isApproved Boolean? @default(false) @map("is_approved")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+  @@index([isApproved])
+  @@map("product_reviews")
+}
+
+// 9. Bespoke Custom Options Tables
+model CustomSilhouette {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  slug        String   @unique @db.VarChar(50)
+  name        String   @db.VarChar(100)
+  description String?  @default("")
+  basePrice   Decimal  @map("base_price") @db.Decimal(10, 2)
+  imageUrl    String?  @default("") @map("image_url")
+  sortOrder   Int?     @default(0) @map("sort_order")
+  isActive    Boolean? @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("custom_silhouettes")
+}
+
+model CustomLeather {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  slug        String   @unique @db.VarChar(50)
+  name        String   @db.VarChar(100)
+  weight      String?  @default("") @db.VarChar(50)
+  origin      String?  @default("") @db.VarChar(100)
+  description String?  @default("")
+  extraPrice  Decimal? @default(0.00) @map("extra_price") @db.Decimal(10, 2)
+  sortOrder   Int?     @default(0) @map("sort_order")
+  isActive    Boolean? @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("custom_leathers")
+}
+
+model CustomColor {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  slug      String   @unique @db.VarChar(50)
+  name      String   @db.VarChar(50)
+  hex       String   @db.VarChar(10)
+  sortOrder Int?     @default(0) @map("sort_order")
+  isActive  Boolean? @default(true) @map("is_active")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("custom_colors")
+}
+
+model CustomLining {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  slug        String   @unique @db.VarChar(50)
+  name        String   @db.VarChar(100)
+  description String?  @default("")
+  extraPrice  Decimal? @default(0.00) @map("extra_price") @db.Decimal(10, 2)
+  sortOrder   Int?     @default(0) @map("sort_order")
+  isActive    Boolean? @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("custom_linings")
+}
+
+model CustomHardware {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  slug       String   @unique @db.VarChar(50)
+  name       String   @db.VarChar(100)
+  finish     String?  @default("")
+  extraPrice Decimal? @default(0.00) @map("extra_price") @db.Decimal(10, 2)
+  sortOrder  Int?     @default(0) @map("sort_order")
+  isActive   Boolean? @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@map("custom_hardware")
+}
+
+// 10. Bespoke Customer Commissions Table
+model CustomCommission {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  dossierNumber     String   @unique @map("dossier_number") @db.VarChar(50)
+  silhouetteId      String?  @map("silhouette_id") @db.VarChar(50)
+  silhouetteName    String?  @default("") @map("silhouette_name") @db.VarChar(100)
+  leatherId         String?  @map("leather_id") @db.VarChar(50)
+  leatherName       String?  @default("") @map("leather_name") @db.VarChar(100)
+  colorId           String?  @map("color_id") @db.VarChar(50)
+  colorName         String?  @default("") @map("color_name") @db.VarChar(100)
+  liningId          String?  @map("lining_id") @db.VarChar(50)
+  liningName        String?  @default("") @map("lining_name") @db.VarChar(100)
+  hardwareId        String?  @map("hardware_id") @db.VarChar(50)
+  hardwareName      String?  @default("") @map("hardware_name") @db.VarChar(100)
+  monogramText      String?  @map("monogram_text") @db.VarChar(10)
+  monogramPlacement String?  @map("monogram_placement") @db.VarChar(100)
+  measurements      Json?    @default("{}")
+  customerName      String   @map("customer_name") @db.VarChar(150)
+  customerEmail     String   @map("customer_email") @db.VarChar(255)
+  customerPhone     String?  @default("") @map("customer_phone") @db.VarChar(50)
+  status            String?  @default("pending") @db.VarChar(30)
+  estimatedPrice    Decimal  @map("estimated_price") @db.Decimal(10, 2)
+  currency          String?  @default("EUR") @db.VarChar(10)
+  estimatedDelivery String?  @default("4–6 weeks") @map("estimated_delivery") @db.VarChar(50)
+  notes             String?  @default("")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([status])
+  @@map("custom_commissions")
+}
+
+// 11. Homepage CMS Sections Table
+model CmsSection {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sectionKey        String   @unique @map("section_key") @db.VarChar(50)
+  title             String?  @default("")
+  subtitle          String?  @default("")
+  eyebrow           String?  @default("")
+  body              Json?
+  primaryCta        Json?    @default("{\"label\": \"\", \"href\": \"\"}") @map("primary_cta")
+  secondaryCta      Json?    @default("{\"label\": \"\", \"href\": \"\"}") @map("secondary_cta")
+  mediaUrl          String?  @default("") @map("media_url")
+  secondaryMediaUrl String?  @default("") @map("secondary_media_url")
+  extraPayload      Json?    @default("{}") @map("extra_payload")
+  isVisible         Boolean? @default(true) @map("is_visible")
+  sortOrder         Int?     @default(0) @map("sort_order")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([isVisible])
+  @@index([sortOrder])
+  @@map("cms_sections")
+}
+
+// 12. Site Settings Table (Singleton)
+model SiteSetting {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  singletonKey   String?  @unique @default("global") @map("singleton_key") @db.VarChar(20)
+  announcement   Json?    @default("{}")
+  shipping       Json?    @default("{}")
+  footer         Json?    @default("{}")
+  searchKeywords String[] @default([]) @map("search_keywords")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("site_settings")
+}
+
+// 13. Navigation Menus Table
+model NavigationMenu {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  menuKey   String   @unique @map("menu_key") @db.VarChar(50)
+  payload   Json
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("navigation_menus")
+}
+
+// 14. Testimonials Table
+model Testimonial {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  quote           String
+  author          String   @db.VarChar(100)
+  city            String   @db.VarChar(100)
+  country         String   @db.VarChar(100)
+  verifiedGarment String   @map("verified_garment") @db.VarChar(150)
+  rating          Int?     @default(5)
+  sortOrder       Int?     @default(0) @map("sort_order")
+  isPublished     Boolean? @default(true) @map("is_published")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([isPublished])
+  @@map("testimonials")
+}
+
+// 15. Social Looks Table
+model SocialLook {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  imageUrl     String   @map("image_url")
+  caption      String
+  tag          String?  @default("@ATELIERVALENTI") @db.VarChar(100)
+  instagramUrl String?  @map("instagram_url")
+  sortOrder    Int?     @default(0) @map("sort_order")
+  isPublished  Boolean? @default(true) @map("is_published")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([isPublished])
+  @@map("social_looks")
+}
+
+// 16. Newsletter Subscribers Table
+model NewsletterSubscriber {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email        String    @unique @db.VarChar(255)
+  locale       String?   @default("en") @db.VarChar(10)
+  isActive     Boolean?  @default(true) @map("is_active")
+  subscribedAt DateTime? @default(now()) @map("subscribed_at") @db.Timestamptz(6)
+
+  @@map("newsletter_subscribers")
+}
+
+// 17. Media Assets Table
+model MediaAsset {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  filename     String
+  originalName String   @map("original_name")
+  mimeType     String   @map("mime_type") @db.VarChar(100)
+  size         BigInt
+  url          String
+  path         String
+  width        Int?
+  height       Int?
+  format       String?  @db.VarChar(20)
+  folder       String?  @default("general") @db.VarChar(50)
+  altText      String?  @default("") @map("alt_text")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([folder])
+  @@map("media_assets")
+}
