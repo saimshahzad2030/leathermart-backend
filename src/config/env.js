@@ -10,9 +10,11 @@ export const env = {
   DIRECT_URL: process.env.DIRECT_URL || '',
 
   // Supabase Storage Configuration (Media Assets)
-  SUPABASE_URL: process.env.SUPABASE_URL || 'https://your-project-id.supabase.co',
-  SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY || '',
-  SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY || '',
+  SUPABASE_URL: process.env.SUPABASE_URL || '',
+  SUPABASE_SERVICE_ROLE_KEY:
+    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY || '',
+  SUPABASE_ANON_KEY:
+    process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_PUBLISHABLE_KEY || '',
   SUPABASE_STORAGE_BUCKET: process.env.SUPABASE_STORAGE_BUCKET || 'media',
 
   // JWT Configuration
@@ -40,6 +42,10 @@ export function validateProductionEnv() {
   if (env.isProd || env.isServerless) {
     const missing = [];
     if (!env.DATABASE_URL) missing.push('DATABASE_URL');
+    if (!env.SUPABASE_URL) missing.push('SUPABASE_URL');
+    if (!env.SUPABASE_SERVICE_ROLE_KEY && !env.SUPABASE_ANON_KEY) {
+      missing.push('SUPABASE_SERVICE_ROLE_KEY');
+    }
     if (!env.JWT_SECRET || env.JWT_SECRET === 'atelier_valenti_milano_secret_2026') {
       missing.push('JWT_SECRET (using default secret in production is unsafe)');
     }

@@ -75,6 +75,15 @@ const uploadsDir = env.isServerless
   : path.resolve(process.cwd(), env.UPLOAD_DIR);
 app.use(`/${env.UPLOAD_DIR}`, express.static(uploadsDir));
 
+// Health check endpoint (no authentication or database query required)
+app.get('/health', (req, res) => {
+  return res.status(200).json({
+    status: 'ok',
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString(),
+  });
+});
+
 // Mount REST APIs
 app.use('/api', routes);
 
@@ -100,3 +109,5 @@ app.use((req, res) => {
 
 // Centralized Error Handling Middleware
 app.use(errorHandler);
+
+export default app;
