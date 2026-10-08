@@ -419,52 +419,94 @@ export const ProductService = {
     if (data.seoDescription !== undefined) updates.seoDescription = data.seoDescription;
 
     try {
-      const updated = await prisma.$transaction(async (tx) => {
-        // Handle images replacement if supplied
-        if (data.images && Array.isArray(data.images)) {
-          await tx.productImage.deleteMany({ where: { productId: id } });
-          updates.images = {
-            create: data.images.map((img, idx) => ({
-              url: img.url,
-              alt: img.alt || '',
-              isPrimary: !!img.isPrimary,
-              isHover: !!img.isHover,
-              type: img.type || 'perspective',
-              sortOrder: img.sortOrder ?? idx + 1,
-            })),
-          };
-        }
+      await prisma.$transaction(
+        async (tx) => {
+          // 1. Concurrently update product root fields and delete replaced images/variants
+          const deleteAndRootOps = [
+            tx.product.update({
+              where: { id },
+              data: updates,
+            }),
+          ];
 
-        // Handle variants replacement if supplied
-        if (data.variants && Array.isArray(data.variants)) {
-          await tx.productVariant.deleteMany({ where: { productId: id } });
-          updates.variants = {
-            create: data.variants.map((v) => ({
-              sku: v.sku,
-              size: v.size,
-              color: v.color,
-              colorHex: v.colorHex || '#000000',
-              stock: v.stock || 0,
-              priceOverride: v.priceOverride ? Number(v.priceOverride) : null,
-            })),
-          };
-        }
+          if (data.images && Array.isArray(data.images)) {
+            deleteAndRootOps.push(tx.productImage.deleteMany({ where: { productId: id } }));
+          }
 
-        return tx.product.update({
-          where: { id },
-          data: updates,
-          include: {
-            images: { orderBy: { sortOrder: 'asc' } },
-            variants: true,
-          },
-        });
+          if (data.variants && Array.isArray(data.variants)) {
+            deleteAndRootOps.push(tx.productVariant.deleteMany({ where: { productId: id } }));
+          }
+
+          await Promise.all(deleteAndRootOps);
+
+          // 2. Concurrently batch-insert replacement images and variants using createMany
+          const insertOps = [];
+
+          if (data.images && Array.isArray(data.images) && data.images.length > 0) {
+            insertOps.push(
+              tx.productImage.createMany({
+                data: data.images.map((img, idx) => ({
+                  productId: id,
+                  url: img.url,
+                  alt: img.alt || '',
+                  isPrimary: !!img.isPrimary,
+                  isHover: !!img.isHover,
+                  type: img.type || 'perspective',
+                  sortOrder: img.sortOrder ?? idx + 1,
+                })),
+              })
+            );
+          }
+
+          if (data.variants && Array.isArray(data.variants) && data.variants.length > 0) {
+            insertOps.push(
+              tx.productVariant.createMany({
+                data: data.variants.map((v) => ({
+                  productId: id,
+                  sku: v.sku,
+                  size: v.size,
+                  color: v.color,
+                  colorHex: v.colorHex || '#000000',
+                  stock: v.stock || 0,
+                  priceOverride: v.priceOverride ? Number(v.priceOverride) : null,
+                })),
+              })
+            );
+          }
+
+          if (insertOps.length > 0) {
+            await Promise.all(insertOps);
+          }
+        },
+        { timeout: 10000 }
+      );
+
+      // 3. Read the updated product with associations outside the transaction
+      const updated = await prisma.product.findUnique({
+        where: { id },
+        include: {
+          images: { orderBy: { sortOrder: 'asc' } },
+          variants: true,
+        },
       });
+
+      if (!updated) {
+        const err = new Error(`Product with id '${id}' not found`);
+        err.statusCode = HTTP_STATUS.NOT_FOUND;
+        throw err;
+      }
 
       return mapProduct(updated);
     } catch (error) {
-      if (error.code === 'P2025') {
+      if (error.code === 'P2025' || error.message?.includes('not found')) {
         const err = new Error(`Product with id '${id}' not found`);
         err.statusCode = HTTP_STATUS.NOT_FOUND;
+        throw err;
+      }
+      if (error.code === 'P2002') {
+        const err = new Error(`Product with SKU '${data.sku}' or slug '${data.slug}' already exists`);
+        err.statusCode = HTTP_STATUS.CONFLICT;
+        err.errorCode = 'ERR_DUPLICATE_PRODUCT';
         throw err;
       }
       throw error;

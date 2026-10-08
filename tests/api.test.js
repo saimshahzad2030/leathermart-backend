@@ -397,6 +397,9 @@ const { mockDb, prismaMock, supabaseMock } = vi.hoisted(() => {
           updatedAt: new Date(),
         };
         if (!db[modelName]) db[modelName] = [];
+        if (modelName === 'mediaAsset' && newItem.size !== undefined) {
+          newItem.size = BigInt(newItem.size);
+        }
         db[modelName].push(newItem);
 
         if (modelName === 'product') {
@@ -447,7 +450,11 @@ const { mockDb, prismaMock, supabaseMock } = vi.hoisted(() => {
       },
       update: async ({ where, data, include }) => {
         const idx = (db[modelName] || []).findIndex((r) => matchesFilter(r, where));
-        if (idx === -1) throw new Error(`${modelName} record to update not found`);
+        if (idx === -1) {
+          const err = new Error(`${modelName} record to update not found`);
+          err.code = 'P2025';
+          throw err;
+        }
         db[modelName][idx] = { ...db[modelName][idx], ...data, updatedAt: new Date() };
         return attachIncludes(modelName, db[modelName][idx], include);
       },
@@ -570,6 +577,7 @@ vi.mock('../src/config/supabase.js', () => ({
 // Now import app and request
 import request from 'supertest';
 import { app } from '../src/app.js';
+import { serializeBigInt, ApiResponse } from '../src/utils/apiResponse.js';
 
 let adminToken = '';
 let testProductSlug = 'test-leather-bomber';
@@ -710,6 +718,54 @@ describe('4. Admin Product CRUD Operations', () => {
     expect(res.body.success).toBe(true);
     expect(res.body.data.sku).toBe('NEW-JACKET-01');
     createdProductId = res.body.data.id || res.body.data._id;
+  });
+
+  it('PUT /api/v1/admin/products/:id should update product specification, images, and variants', async () => {
+    const res = await request(app)
+      .put(`/api/v1/admin/products/${createdProductId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        name: 'Updated Milanese Double Rider',
+        price: 580,
+        description: 'Updated tailored description.',
+        images: [
+          {
+            url: 'https://images.unsplash.com/photo-1551028719-00167b16eac5',
+            alt: 'Updated front',
+            isPrimary: true,
+          },
+        ],
+        variants: [
+          {
+            sku: 'NEW-JACKET-01-48-BLK',
+            size: '48 (EU M)',
+            color: 'Obsidian Black',
+            colorHex: '#11100F',
+            stock: 12,
+            priceOverride: 580,
+          },
+        ],
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.name).toBe('Updated Milanese Double Rider');
+    expect(res.body.data.price).toBe(580);
+    expect(res.body.data.images).toHaveLength(1);
+    expect(res.body.data.variants).toHaveLength(1);
+    expect(res.body.data.variants[0].sku).toBe('NEW-JACKET-01-48-BLK');
+  });
+
+  it('PUT /api/v1/admin/products/:id should return 404 for nonexistent product', async () => {
+    const res = await request(app)
+      .put('/api/v1/admin/products/99999999-9999-9999-9999-999999999999')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        name: 'Nonexistent Product',
+      });
+
+    expect(res.status).toBe(404);
+    expect(res.body.success).toBe(false);
   });
 
   it('POST /api/v1/admin/products/:id/duplicate should clone product as draft', async () => {
@@ -928,4 +984,133 @@ describe('8. Category Deletion & Foreign Key Constraint Handling', () => {
     }
   });
 });
+
+describe('9. BigInt Serialization & Media Endpoints', () => {
+  it('serializeBigInt should safely serialize standalone BigInt, nested objects, and arrays', () => {
+    const raw = {
+      id: 123n,
+      nested: {
+        count: 456n,
+      },
+      items: [
+        {
+          id: 789n,
+        },
+      ],
+      name: 'Leather Jacket',
+      price: 450,
+      isActive: true,
+      nullVal: null,
+      undefVal: undefined,
+    };
+
+    const serialized = serializeBigInt(raw);
+    expect(serialized.id).toBe('123');
+    expect(serialized.nested.count).toBe('456');
+    expect(serialized.items[0].id).toBe('789');
+    expect(serialized.name).toBe('Leather Jacket');
+    expect(serialized.price).toBe(450);
+    expect(serialized.isActive).toBe(true);
+    expect(serialized.nullVal).toBeNull();
+    expect(serialized.undefVal).toBeUndefined();
+
+    // Verify native JSON.stringify works without throwing
+    expect(() => JSON.stringify(serialized)).not.toThrow();
+    const parsed = JSON.parse(JSON.stringify(serialized));
+    expect(parsed.id).toBe('123');
+    expect(parsed.nested.count).toBe('456');
+    expect(parsed.items[0].id).toBe('789');
+  });
+
+  it('serializeBigInt should preserve Date instances without converting them to empty objects', () => {
+    const testDate = new Date('2026-05-15T12:00:00.000Z');
+    const raw = {
+      createdAt: testDate,
+      bigintVal: 999n,
+    };
+
+    const serialized = serializeBigInt(raw);
+    expect(serialized.createdAt).toBeInstanceOf(Date);
+    const jsonStr = JSON.stringify(serialized);
+    expect(jsonStr).toContain('"createdAt":"2026-05-15T12:00:00.000Z"');
+  });
+
+  it('ApiResponse.success and ApiResponse.created should safely serialize BigInt in response', () => {
+    const mockRes = () => {
+      const res = {};
+      res.statusCode = 200;
+      res.status = vi.fn((code) => {
+        res.statusCode = code;
+        return res;
+      });
+      res.json = vi.fn((data) => {
+        res.body = data;
+        return res;
+      });
+      return res;
+    };
+
+    const res1 = mockRes();
+    ApiResponse.success(res1, {
+      data: { id: 100n, count: 200n },
+      message: 'Success with BigInt',
+    });
+    expect(res1.status).toHaveBeenCalledWith(200);
+    expect(res1.body.data.id).toBe('100');
+    expect(res1.body.data.count).toBe('200');
+
+    const res2 = mockRes();
+    ApiResponse.created(res2, {
+      data: { assetId: 555n },
+      message: 'Created with BigInt',
+    });
+    expect(res2.status).toHaveBeenCalledWith(201);
+    expect(res2.body.data.assetId).toBe('555');
+  });
+
+  it('GET /api/v1/admin/media should serialize media assets containing BigInt size without throwing', async () => {
+    mockDb.mediaAsset.push({
+      id: 'm1111111-1111-1111-1111-111111111111',
+      filename: 'sample-jacket.jpg',
+      originalName: 'Sample Jacket.jpg',
+      mimeType: 'image/jpeg',
+      size: 154820n,
+      url: 'https://example.com/sample-jacket.jpg',
+      path: 'uploads/sample-jacket.jpg',
+      folder: 'general',
+      createdAt: new Date(),
+    });
+
+    const res = await request(app)
+      .get('/api/v1/admin/media?limit=1')
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(Array.isArray(res.body.data)).toBe(true);
+    expect(res.body.data.length).toBeGreaterThan(0);
+    expect(typeof res.body.data[0].size).toBe('string');
+    expect(res.body.data[0].size).toBe('154820');
+  });
+
+  it('POST /api/v1/admin/media/upload should serialize newly uploaded media asset with BigInt size', async () => {
+    const pngBuffer = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+      'base64'
+    );
+
+    const res = await request(app)
+      .post('/api/v1/admin/media/upload')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .attach('file', pngBuffer, 'test-upload.png')
+      .field('folder', 'products')
+      .field('altText', 'Test Upload');
+
+    expect(res.status).toBe(201);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data).toBeDefined();
+    expect(typeof res.body.data.size).toBe('string');
+  });
+});
+
 
