@@ -2,7 +2,7 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { env } from '../config/env.js';
 import { prisma } from '../lib/prisma.js';
-import { HTTP_STATUS } from '../config/constants.js';
+import { HTTP_STATUS, ROLES } from '../config/constants.js';
 
 export const AuthService = {
   generateTokens(user) {
@@ -293,6 +293,66 @@ export const AuthService = {
       }
       throw error;
     }
+  },
+
+  /**
+   * One-time secure bootstrap for the first Super Admin account.
+   * Atomically verifies that no users currently exist before creation.
+   * Refuses to run if any administrator account already exists.
+   */
+  async bootstrapSuperAdmin({ email, password, firstName, lastName }) {
+    if (!email || typeof email !== 'string' || !email.includes('@')) {
+      const err = new Error('A valid email address is required for bootstrapping the Super Admin');
+      err.statusCode = HTTP_STATUS.BAD_REQUEST;
+      err.errorCode = 'ERR_INVALID_EMAIL';
+      throw err;
+    }
+
+    if (!password || typeof password !== 'string' || password.length < 8) {
+      const err = new Error('Password must be at least 8 characters long');
+      err.statusCode = HTTP_STATUS.BAD_REQUEST;
+      err.errorCode = 'ERR_WEAK_PASSWORD';
+      throw err;
+    }
+
+    return await prisma.$transaction(async (tx) => {
+      const count = await tx.adminUser.count();
+      if (count > 0) {
+        const err = new Error(
+          'Bootstrap rejected: One or more administrator accounts already exist in the database. Bootstrap is only permitted on a completely empty user table.'
+        );
+        err.statusCode = HTTP_STATUS.CONFLICT;
+        err.errorCode = 'ERR_BOOTSTRAP_NOT_ALLOWED';
+        throw err;
+      }
+
+      const salt = await bcrypt.genSalt(10);
+      const passwordHash = await bcrypt.hash(password, salt);
+
+      const user = await tx.adminUser.create({
+        data: {
+          email: email.toLowerCase().trim(),
+          passwordHash,
+          firstName: (firstName || 'Alessandro').trim(),
+          lastName: (lastName || 'Valenti').trim(),
+          role: ROLES.SUPER_ADMIN,
+          permissions: ['*'],
+          isActive: true,
+        },
+      });
+
+      return {
+        id: user.id,
+        _id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role,
+        permissions: user.permissions,
+        isActive: user.isActive,
+        createdAt: user.createdAt,
+      };
+    });
   },
 
   async updateUser(id, data) {

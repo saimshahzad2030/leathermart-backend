@@ -1,16 +1,22 @@
 import { Router } from 'express';
 import { ProductController } from '../controllers/product.controller.js';
+import { SizeController } from '../controllers/size.controller.js';
+import { ColorController } from '../controllers/color.controller.js';
+import { PolicyController } from '../controllers/policy.controller.js';
 import { CategoryController } from '../controllers/category.controller.js';
 import { CmsController } from '../controllers/cms.controller.js';
 import { CommissionController } from '../controllers/commission.controller.js';
 import { SettingsController } from '../controllers/settings.controller.js';
+import { ContactController } from '../controllers/contact.controller.js';
 import { validate } from '../middlewares/validate.js';
+import { contactRateLimiter } from '../middlewares/rateLimiter.js';
 import {
   productFilterQuerySchema,
   createReviewSchema,
 } from '../validators/product.validator.js';
 import { createCommissionSchema } from '../validators/commission.validator.js';
 import { subscribeNewsletterSchema } from '../validators/cms.validator.js';
+import { createContactMessageSchema } from '../validators/contact.validator.js';
 
 const router = Router();
 
@@ -34,6 +40,11 @@ router.get('/products/:slug/reviews', ProductController.listReviews);
 router.post('/products/:id/reviews', validate(createReviewSchema), ProductController.addReview);
 router.get('/products/:slug/related', ProductController.getRelated);
 
+// 3b. Public Sizes, Colors, and Policies
+router.get('/sizes', SizeController.listSizesPublic);
+router.get('/colors', ColorController.listColorsPublic);
+router.get('/policies', PolicyController.listPoliciesPublic);
+
 // 4. Categories & Collections APIs
 router.get('/categories', CategoryController.listCategories);
 router.get('/categories/:slug', CategoryController.getCategoryBySlug);
@@ -55,5 +66,13 @@ router.post(
 );
 router.get('/testimonials', CmsController.listTestimonialsPublic);
 router.get('/social-looks', CmsController.listSocialLooksPublic);
+
+// 7. Contact Us & Client Concierge Inquiries
+router.post(
+  '/contact',
+  contactRateLimiter,
+  validate(createContactMessageSchema),
+  ContactController.submitContact
+);
 
 export default router;

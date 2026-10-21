@@ -2,7 +2,14 @@ import { z } from 'zod';
 import { GENDERS, SORT_OPTIONS } from '../config/constants.js';
 
 export const productImageSchema = z.object({
-  url: z.string().url('Invalid image URL'),
+  url: z.string().min(1, 'Image URL is required').refine(
+    (val) =>
+      val.startsWith('http://') ||
+      val.startsWith('https://') ||
+      val.startsWith('data:') ||
+      val.startsWith('/'),
+    { message: 'Invalid image URL or data URI' }
+  ),
   alt: z.string().optional().default(''),
   isPrimary: z.boolean().optional().default(false),
   isHover: z.boolean().optional().default(false),
@@ -16,7 +23,8 @@ export const productVariantSchema = z.object({
   size: z.string().min(1, 'Size is required'),
   color: z.string().min(1, 'Color is required'),
   colorHex: z.string().min(1, 'Color HEX is required'),
-  stock: z.number().int().min(0, 'Stock cannot be negative').default(0),
+  inStock: z.boolean().optional().default(true),
+  stock: z.number().int().optional(), // transitional legacy support
   priceOverride: z.number().positive().nullable().optional(),
 });
 
@@ -25,7 +33,16 @@ export const colorOptionSchema = z.object({
   hex: z.string().min(1),
 });
 
-export const createProductSchema = z.object({
+export const regionalPriceSchema = z.object({
+  id: z.string().optional(),
+  regionCode: z.enum(['PK', 'IT', 'GLOBAL']),
+  currency: z.enum(['PKR', 'EUR']),
+  price: z.coerce.number().positive('Regional price must be a positive number'),
+  salePrice: z.coerce.number().positive().nullable().optional(),
+  isActive: z.boolean().optional().default(true),
+});
+
+export const baseProductSchema = z.object({
   sku: z.string().min(3).max(50),
   slug: z.string().min(3).max(150).optional(),
   name: z.string().min(2, 'Product name must have at least 2 characters'),
@@ -41,24 +58,55 @@ export const createProductSchema = z.object({
   modelInfo: z.string().optional().default(''),
   description: z.string().min(10, 'Description must have at least 10 characters'),
   editorialQuote: z.string().optional().default(''),
-  price: z.number().positive('Price must be a positive number in EUR'),
-  salePrice: z.number().positive('Sale price must be positive').nullable().optional(),
+  price: z.coerce.number().positive('Price must be a positive number'),
+  salePrice: z.coerce.number().positive('Sale price must be positive').nullable().optional(),
   isFeatured: z.boolean().optional().default(false),
   isBestseller: z.boolean().optional().default(false),
   isNewArrival: z.boolean().optional().default(false),
   isPublished: z.boolean().optional().default(true),
+  isInStock: z.union([
+    z.boolean(),
+    z.string().transform((v) => v === 'true' || v === '1'),
+    z.number().transform((v) => v === 1),
+  ]).optional().default(true),
   sortOrder: z.number().int().optional().default(0),
   images: z.array(productImageSchema).optional().default([]),
   variants: z.array(productVariantSchema).optional().default([]),
   specifications: z.array(z.string()).optional().default([]),
   careInstructions: z.array(z.string()).optional().default([]),
+  // Every product must have at least one size and one color
+  sizes: z.array(z.string()).optional(),
+  colors: z.array(z.union([z.string(), colorOptionSchema])).optional(),
   availableColors: z.array(colorOptionSchema).optional().default([]),
   availableSizes: z.array(z.string()).optional().default([]),
+  regionalPrices: z.array(regionalPriceSchema).optional().default([]),
+  policies: z.array(z.string()).optional().default([]),
   seoTitle: z.string().nullable().optional(),
   seoDescription: z.string().nullable().optional(),
 });
 
-export const updateProductSchema = createProductSchema.partial();
+export const createProductSchema = baseProductSchema.refine(
+  (data) => {
+    const hasSizes = (data.sizes && data.sizes.length > 0) || (data.availableSizes && data.availableSizes.length > 0);
+    return hasSizes;
+  },
+  { message: 'Every product must have at least one available size selected', path: ['sizes'] }
+).refine(
+  (data) => {
+    const hasColors = (data.colors && data.colors.length > 0) || (data.availableColors && data.availableColors.length > 0);
+    return hasColors;
+  },
+  { message: 'Every product must have at least one available color selected', path: ['colors'] }
+);
+
+export const updateProductSchema = baseProductSchema.partial();
+
+const booleanQueryParam = z.preprocess((val) => {
+  if (val === undefined || val === null || val === '') return undefined;
+  if (val === 'true' || val === true || val === '1' || val === 1) return true;
+  if (val === 'false' || val === false || val === '0' || val === 0) return false;
+  return val;
+}, z.boolean().optional());
 
 export const productFilterQuerySchema = z.object({
   category: z.string().optional(),
@@ -69,13 +117,17 @@ export const productFilterQuerySchema = z.object({
   leatherFamily: z.string().optional(),
   size: z.string().optional(),
   color: z.string().optional(),
+  market: z.string().optional(),
   min_price: z.coerce.number().min(0).optional(),
   max_price: z.coerce.number().min(0).optional(),
   minPrice: z.coerce.number().min(0).optional(),
   maxPrice: z.coerce.number().min(0).optional(),
-  is_new: z.coerce.boolean().optional(),
-  is_bestseller: z.coerce.boolean().optional(),
-  is_featured: z.coerce.boolean().optional(),
+  is_new: booleanQueryParam,
+  is_bestseller: booleanQueryParam,
+  is_featured: booleanQueryParam,
+  in_stock: booleanQueryParam,
+  isInStock: booleanQueryParam,
+  is_in_stock: booleanQueryParam,
   status: z.enum(['published', 'draft', 'all']).optional(),
   sort: z.enum(Object.values(SORT_OPTIONS)).optional(),
   sortBy: z.string().optional(),

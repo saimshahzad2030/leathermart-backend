@@ -5,8 +5,9 @@ export const ProductController = {
   // Public APIs
   async listProducts(req, res, next) {
     try {
+      const market = req.query.market || req.headers['x-market'] || 'GLOBAL';
       const { products, pagination } = await ProductService.listProducts(
-        req.query,
+        { ...req.query, market },
         true
       );
       return ApiResponse.success(res, {
@@ -21,9 +22,11 @@ export const ProductController = {
 
   async getProductBySlug(req, res, next) {
     try {
+      const market = req.query.market || req.headers['x-market'] || 'GLOBAL';
       const product = await ProductService.getProductBySlug(
         req.params.slug,
-        true
+        true,
+        market
       );
       return ApiResponse.success(res, {
         message: 'Product retrieved successfully',
@@ -48,7 +51,8 @@ export const ProductController = {
   async search(req, res, next) {
     try {
       const query = req.query.q || req.query.query || '';
-      const results = await ProductService.searchProducts(query);
+      const market = req.query.market || req.headers['x-market'] || 'GLOBAL';
+      const results = await ProductService.searchProducts(query, 20, market);
       return ApiResponse.success(res, {
         data: results,
       });
@@ -59,9 +63,11 @@ export const ProductController = {
 
   async getRelated(req, res, next) {
     try {
+      const market = req.query.market || req.headers['x-market'] || 'GLOBAL';
       const product = await ProductService.getProductBySlug(
         req.params.slug,
-        true
+        true,
+        market
       );
       return ApiResponse.success(res, {
         data: product.relatedProducts || [],
@@ -101,8 +107,9 @@ export const ProductController = {
   // Admin APIs
   async listProductsAdmin(req, res, next) {
     try {
+      const market = req.query.market || req.headers['x-market'] || 'GLOBAL';
       const { products, pagination } = await ProductService.listProducts(
-        req.query,
+        { ...req.query, market },
         false
       );
       return ApiResponse.success(res, {
@@ -116,7 +123,8 @@ export const ProductController = {
 
   async getProductById(req, res, next) {
     try {
-      const product = await ProductService.getProductById(req.params.id);
+      const market = req.query.market || req.headers['x-market'] || 'GLOBAL';
+      const product = await ProductService.getProductById(req.params.id, market);
       return ApiResponse.success(res, {
         data: product,
       });
@@ -127,7 +135,7 @@ export const ProductController = {
 
   async createProduct(req, res, next) {
     try {
-      const product = await ProductService.createProduct(req.body);
+      const product = await ProductService.createProduct(req.body, req.files);
       return ApiResponse.created(res, {
         message: 'Garment specification created successfully',
         data: product,
@@ -141,7 +149,8 @@ export const ProductController = {
     try {
       const product = await ProductService.updateProduct(
         req.params.id,
-        req.body
+        req.body,
+        req.files
       );
       return ApiResponse.success(res, {
         message: 'Product updated successfully',

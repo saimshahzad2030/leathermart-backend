@@ -249,6 +249,13 @@ const { mockDb, prismaMock, supabaseMock } = vi.hoisted(() => {
     newsletterSubscriber: [],
     customCommission: [],
     mediaAsset: [],
+    productSize: [],
+    productSizeAssignment: [],
+    productColor: [],
+    productColorAssignment: [],
+    productPrice: [],
+    productPolicy: [],
+    productPolicyAssignment: [],
   };
 
   function matchesFilter(item, where) {
@@ -313,6 +320,25 @@ const { mockDb, prismaMock, supabaseMock } = vi.hoisted(() => {
       if (include.variants) {
         cloned.variants = (db.productVariant || [])
           .filter((v) => v.productId === item.id);
+      }
+      if (include.prices) {
+        cloned.prices = (db.productPrice || [])
+          .filter((p) => p.productId === item.id);
+      }
+      if (include.sizeAssignments) {
+        cloned.sizeAssignments = (db.productSizeAssignment || [])
+          .filter((sa) => sa.productId === item.id)
+          .map((sa) => ({ ...sa, size: (db.productSize || []).find((s) => s.id === sa.sizeId) }));
+      }
+      if (include.colorAssignments) {
+        cloned.colorAssignments = (db.productColorAssignment || [])
+          .filter((ca) => ca.productId === item.id)
+          .map((ca) => ({ ...ca, color: (db.productColor || []).find((c) => c.id === ca.colorId) }));
+      }
+      if (include.policyAssignments) {
+        cloned.policyAssignments = (db.productPolicyAssignment || [])
+          .filter((pa) => pa.productId === item.id)
+          .map((pa) => ({ ...pa, policy: (db.productPolicy || []).find((p) => p.id === pa.policyId) }));
       }
       if (include.reviews) {
         cloned.reviews = (db.productReview || [])
@@ -389,7 +415,7 @@ const { mockDb, prismaMock, supabaseMock } = vi.hoisted(() => {
       },
       create: async ({ data, include }) => {
         const id = data.id || `mock-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
-        const { images, variants, reviews, ...fields } = data;
+        const { images, variants, reviews, sizeAssignments, colorAssignments, policyAssignments, prices, ...fields } = data;
         const newItem = {
           ...fields,
           id,
@@ -434,6 +460,30 @@ const { mockDb, prismaMock, supabaseMock } = vi.hoisted(() => {
                 productId: id,
                 createdAt: new Date(),
               });
+            });
+          }
+          if (sizeAssignments?.create) {
+            const arr = Array.isArray(sizeAssignments.create) ? sizeAssignments.create : [sizeAssignments.create];
+            arr.forEach((sa) => {
+              db.productSizeAssignment.push({ ...sa, id: `psa-${Date.now()}-${Math.random()}`, productId: id });
+            });
+          }
+          if (colorAssignments?.create) {
+            const arr = Array.isArray(colorAssignments.create) ? colorAssignments.create : [colorAssignments.create];
+            arr.forEach((ca) => {
+              db.productColorAssignment.push({ ...ca, id: `pca-${Date.now()}-${Math.random()}`, productId: id });
+            });
+          }
+          if (policyAssignments?.create) {
+            const arr = Array.isArray(policyAssignments.create) ? policyAssignments.create : [policyAssignments.create];
+            arr.forEach((pa) => {
+              db.productPolicyAssignment.push({ ...pa, id: `ppa-${Date.now()}-${Math.random()}`, productId: id });
+            });
+          }
+          if (prices?.create) {
+            const arr = Array.isArray(prices.create) ? prices.create : [prices.create];
+            arr.forEach((pr) => {
+              db.productPrice.push({ ...pr, id: `pr-${Date.now()}-${Math.random()}`, productId: id });
             });
           }
         }
@@ -524,6 +574,13 @@ const { mockDb, prismaMock, supabaseMock } = vi.hoisted(() => {
     'navigationMenu',
     'newsletterSubscriber',
     'mediaAsset',
+    'productSize',
+    'productSizeAssignment',
+    'productColor',
+    'productColorAssignment',
+    'productPrice',
+    'productPolicy',
+    'productPolicyAssignment',
   ];
 
   const pMock = {
@@ -712,6 +769,8 @@ describe('4. Admin Product CRUD Operations', () => {
         leatherType: 'Plonge Nappa Lambskin',
         description: 'New architectural biker jacket designed for modern layering.',
         styles: ['biker', 'luxury'],
+        sizes: ['48 (EU M)'],
+        colors: ['Obsidian Black'],
       });
 
     expect(res.status).toBe(201);

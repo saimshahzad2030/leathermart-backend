@@ -1,61 +1,48 @@
 import fs from 'fs';
 import path from 'path';
 import { prisma } from '../lib/prisma.js';
-import { supabase } from '../config/supabase.js';
-import { env } from '../config/env.js';
+import { StorageService } from './storage.service.js';
 import { HTTP_STATUS } from '../config/constants.js';
 import { mapRowToCamelCase } from '../utils/mapper.js';
+import { logger } from '../utils/logger.js';
 
 export const MediaService = {
   async saveAsset(file, metadata = {}, req) {
-    const bucket = env.SUPABASE_STORAGE_BUCKET || 'media';
     const folder = metadata.folder || 'general';
-    const storagePath = `${folder}/${Date.now()}-${file.filename || file.originalname}`;
 
-    let fileUrl = '';
-
-    // Attempt upload to Supabase Storage if configured
-    try {
-      if (file.path && fs.existsSync(file.path)) {
-        const fileBuffer = fs.readFileSync(file.path);
-        const { data: uploadData, error: uploadErr } = await supabase.storage
-          .from(bucket)
-          .upload(storagePath, fileBuffer, {
-            contentType: file.mimetype,
-            upsert: true,
-          });
-
-        if (!uploadErr && uploadData) {
-          const { data: publicUrlData } = supabase.storage
-            .from(bucket)
-            .getPublicUrl(storagePath);
-          if (publicUrlData?.publicUrl) {
-            fileUrl = publicUrlData.publicUrl;
-          }
-        }
-      }
-    } catch (e) {
-      // Supabase storage bucket might not be created or network offline; fallback gracefully
+    let buffer = file.buffer;
+    if (!buffer && file.path && fs.existsSync(file.path)) {
+      buffer = fs.readFileSync(file.path);
     }
 
-    // Fallback to local server URL if Supabase storage was not used or failed
-    if (!fileUrl && req) {
-      const baseUrl = `${req.protocol}://${req.get('host')}`;
-      fileUrl = `${baseUrl}/${env.UPLOAD_DIR}/${file.filename || path.basename(file.path)}`;
-    } else if (!fileUrl) {
-      fileUrl = `/${env.UPLOAD_DIR}/${file.filename || path.basename(file.path)}`;
+    if (!buffer) {
+      const err = new Error('No valid file buffer received for upload');
+      err.statusCode = HTTP_STATUS.BAD_REQUEST;
+      err.errorCode = 'ERR_EMPTY_FILE';
+      throw err;
     }
+
+    const originalName = file.originalname || file.filename || 'asset';
+    const mimeType = file.mimetype || 'application/octet-stream';
+
+    // Upload directly to Supabase Storage
+    const uploaded = await StorageService.uploadBuffer({
+      buffer,
+      originalName,
+      mimeType,
+      folder,
+    });
 
     const asset = await prisma.mediaAsset.create({
       data: {
-        filename: file.filename || path.basename(file.path),
-        originalName: file.originalname || file.filename || 'unnamed',
-        mimeType: file.mimetype || 'application/octet-stream',
-        size: file.size || 0,
-        url: fileUrl,
-        path: file.path || storagePath,
+        filename: uploaded.filename,
+        originalName: uploaded.originalName,
+        mimeType: uploaded.mimeType,
+        size: BigInt(uploaded.size),
+        url: uploaded.url,
+        path: uploaded.path,
         folder: folder,
-        altText: metadata.altText || file.originalname || '',
+        altText: metadata.altText || metadata.alt_text || originalName,
       },
     });
 
@@ -107,15 +94,16 @@ export const MediaService = {
       throw err;
     }
 
-    // Delete from Supabase Storage if applicable
-    try {
-      const bucket = env.SUPABASE_STORAGE_BUCKET || 'media';
-      await supabase.storage.from(bucket).remove([asset.path]);
-    } catch (e) {
-      // Ignore storage deletion errors
+    // 1. Remove from Supabase Storage
+    if (asset.path) {
+      try {
+        await StorageService.deleteFile(asset.path);
+      } catch (e) {
+        logger.warn(`Could not delete storage object ${asset.path}: ${e.message}`);
+      }
     }
 
-    // Delete local disk file if present
+    // 2. Clean up legacy local disk file if present
     if (asset.path && fs.existsSync(asset.path)) {
       try {
         fs.unlinkSync(asset.path);

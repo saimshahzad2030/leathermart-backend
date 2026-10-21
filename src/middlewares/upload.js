@@ -4,8 +4,7 @@ import fs from 'fs';
 import os from 'os';
 import { env } from '../config/env.js';
 
-// In serverless environments (e.g. Vercel / AWS Lambda), process.cwd() is read-only (/var/task).
-// Use os.tmpdir() to prevent EROFS errors while maintaining diskStorage compatibility.
+// Retained for backward-compatibility with any legacy local file references
 export const uploadDirectory = env.isServerless
   ? path.join(os.tmpdir(), env.UPLOAD_DIR)
   : path.resolve(process.cwd(), env.UPLOAD_DIR);
@@ -15,29 +14,19 @@ try {
     fs.mkdirSync(uploadDirectory, { recursive: true });
   }
 } catch (err) {
-  console.warn(`[WARN] Could not initialize upload directory at ${uploadDirectory}: ${err.message}`);
+  // Graceful warning for read-only environments
 }
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadDirectory);
-  },
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    const cleanName = path
-      .basename(file.originalname, ext)
-      .toLowerCase()
-      .replace(/[^a-z0-9]/g, '-');
-    const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e6)}`;
-    cb(null, `${cleanName}-${uniqueSuffix}${ext}`);
-  },
-});
+// In-memory buffer storage — files are streamed directly to Supabase Storage
+// without persisting temporary or permanent files to the local server disk.
+const storage = multer.memoryStorage();
 
 const allowedMimeTypes = [
   'image/jpeg',
   'image/png',
   'image/webp',
   'image/avif',
+  'image/gif',
   'video/mp4',
   'video/webm',
 ];
@@ -47,7 +36,7 @@ const fileFilter = (req, file, cb) => {
     cb(null, true);
   } else {
     const err = new Error(
-      `Unsupported file format (${file.mimetype}). Allowed formats: JPEG, PNG, WebP, AVIF, MP4, WebM.`
+      `Unsupported file format (${file.mimetype}). Allowed formats: JPEG, PNG, WebP, AVIF, GIF, MP4, WebM.`
     );
     err.statusCode = 400;
     err.errorCode = 'ERR_INVALID_FILE_TYPE';
@@ -59,6 +48,7 @@ export const upload = multer({
   storage,
   fileFilter,
   limits: {
-    fileSize: env.MAX_FILE_SIZE_MB * 1024 * 1024,
+    fileSize: (env.MAX_FILE_SIZE_MB || 10) * 1024 * 1024,
+    files: 10, // reasonable file count limit
   },
 });

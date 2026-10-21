@@ -94,6 +94,7 @@ app.get('/', (req, res) => {
     data: {
       documentation: '/api/health',
       version: '1.0.0',
+
     },
   });
 });

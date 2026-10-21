@@ -28,3 +28,17 @@ export const authRateLimiter = rateLimit({
     });
   },
 });
+
+export const contactRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10, // Max 10 contact submissions per 15 minutes per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req, res) => {
+    return ApiResponse.error(res, {
+      message: 'Too many contact inquiries received from this IP address. Please try again after a few minutes.',
+      errorCode: 'ERR_CONTACT_RATE_LIMIT',
+      statusCode: 429,
+    });
+  },
+});
