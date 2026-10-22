@@ -50,6 +50,67 @@ export const updateSettingsSchema = z.object({
     })
     .optional(),
   searchKeywords: z.array(z.string()).optional(),
+  platformName: z.string().min(1).max(150).optional(),
+  platformShortName: z.string().max(50).optional().nullable().or(z.literal('')),
+  logoUrl: z
+    .string()
+    .max(1000)
+    .refine((val) => !val || val.startsWith('http://') || val.startsWith('https://') || val.startsWith('/'), {
+      message: 'Must be a valid URL or path',
+    })
+    .optional()
+    .nullable()
+    .or(z.literal('')),
+  logoDarkUrl: z
+    .string()
+    .max(1000)
+    .refine((val) => !val || val.startsWith('http://') || val.startsWith('https://') || val.startsWith('/'), {
+      message: 'Must be a valid URL or path',
+    })
+    .optional()
+    .nullable()
+    .or(z.literal('')),
+  logoLightUrl: z
+    .string()
+    .max(1000)
+    .refine((val) => !val || val.startsWith('http://') || val.startsWith('https://') || val.startsWith('/'), {
+      message: 'Must be a valid URL or path',
+    })
+    .optional()
+    .nullable()
+    .or(z.literal('')),
+  faviconUrl: z
+    .string()
+    .max(1000)
+    .refine((val) => !val || val.startsWith('http://') || val.startsWith('https://') || val.startsWith('/'), {
+      message: 'Must be a valid URL or path',
+    })
+    .optional()
+    .nullable()
+    .or(z.literal('')),
+  browserTitle: z.string().min(1).max(200).optional(),
+  metaDescription: z.string().max(1000).optional().nullable().or(z.literal('')),
+});
+
+const urlOrPathValidator = z
+  .string()
+  .max(1000)
+  .refine((val) => !val || val.startsWith('http://') || val.startsWith('https://') || val.startsWith('/'), {
+    message: 'Must be a valid URL or path',
+  })
+  .optional()
+  .nullable()
+  .or(z.literal(''));
+
+export const updateBrandingSchema = z.object({
+  platformName: z.string().min(1, 'Platform name cannot be empty').max(150, 'Platform name must be under 150 characters').optional(),
+  platformShortName: z.string().max(50, 'Short name must be under 50 characters').optional().nullable().or(z.literal('')),
+  logoUrl: urlOrPathValidator,
+  logoDarkUrl: urlOrPathValidator,
+  logoLightUrl: urlOrPathValidator,
+  faviconUrl: urlOrPathValidator,
+  browserTitle: z.string().min(1, 'Browser title cannot be empty').max(200, 'Browser title must be under 200 characters').optional(),
+  metaDescription: z.string().max(1000, 'Meta description must be under 1000 characters').optional().nullable().or(z.literal('')),
 });
 
 export const updateSearchKeywordsSchema = z.object({

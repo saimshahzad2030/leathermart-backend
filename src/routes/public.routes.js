@@ -25,6 +25,7 @@ router.get('/content/homepage', CmsController.getHomepageContent);
 router.get('/content/navigation', SettingsController.getNavigation);
 
 // 2. Settings & SEO APIs
+router.get('/settings/branding', SettingsController.getBranding);
 router.get('/settings/footer', SettingsController.getFooter);
 router.get('/settings/announcement', SettingsController.getAnnouncement);
 router.get('/settings/shipping', SettingsController.getShipping);

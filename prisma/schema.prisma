@@ -322,14 +322,22 @@ model CmsSection {
 
 // 12. Site Settings Table (Singleton)
 model SiteSetting {
-  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  singletonKey   String?  @unique @default("global") @map("singleton_key") @db.VarChar(20)
-  announcement   Json?    @default("{}")
-  shipping       Json?    @default("{}")
-  footer         Json?    @default("{}")
-  searchKeywords String[] @default([]) @map("search_keywords")
-  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  singletonKey      String?  @unique @default("global") @map("singleton_key") @db.VarChar(20)
+  platformName      String?  @default("Atelier Valenti Milano") @map("platform_name") @db.VarChar(150)
+  platformShortName String?  @default("AVM") @map("platform_short_name") @db.VarChar(50)
+  logoUrl           String?  @map("logo_url")
+  logoDarkUrl       String?  @map("logo_dark_url")
+  logoLightUrl      String?  @map("logo_light_url")
+  faviconUrl        String?  @map("favicon_url")
+  browserTitle      String?  @default("Atelier Valenti Milano — Handcrafted European Leather Outerwear") @map("browser_title") @db.VarChar(200)
+  metaDescription   String?  @default("Luxury Italian calfskin and lambskin outerwear crafted by hand in our Milanese atelier. AZO-free certified leather with European express delivery.") @map("meta_description")
+  announcement      Json?    @default("{}")
+  shipping          Json?    @default("{}")
+  footer            Json?    @default("{}")
+  searchKeywords    String[] @default([]) @map("search_keywords")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@map("site_settings")
 }

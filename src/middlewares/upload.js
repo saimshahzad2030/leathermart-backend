@@ -27,6 +27,9 @@ const allowedMimeTypes = [
   'image/webp',
   'image/avif',
   'image/gif',
+  'image/svg+xml',
+  'image/x-icon',
+  'image/vnd.microsoft.icon',
   'video/mp4',
   'video/webm',
 ];
@@ -36,7 +39,7 @@ const fileFilter = (req, file, cb) => {
     cb(null, true);
   } else {
     const err = new Error(
-      `Unsupported file format (${file.mimetype}). Allowed formats: JPEG, PNG, WebP, AVIF, GIF, MP4, WebM.`
+      `Unsupported file format (${file.mimetype}). Allowed formats: JPEG, PNG, WebP, AVIF, GIF, SVG, ICO, MP4, WebM.`
     );
     err.statusCode = 400;
     err.errorCode = 'ERR_INVALID_FILE_TYPE';

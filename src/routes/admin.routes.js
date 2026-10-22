@@ -67,6 +67,7 @@ import {
 } from '../validators/cms.validator.js';
 import {
   updateSettingsSchema,
+  updateBrandingSchema,
   updateSearchKeywordsSchema,
 } from '../validators/settings.validator.js';
 
@@ -488,6 +489,13 @@ router.delete('/customization/hardware/:id', CommissionController.deleteHardware
 // ==========================================
 // 6. Global Settings & Navigation Menus
 // ==========================================
+router.get('/settings/branding', SettingsController.getBranding);
+router.patch(
+  '/settings/branding',
+  authorize(ROLES.SUPER_ADMIN, ROLES.STORE_MANAGER),
+  validate(updateBrandingSchema),
+  SettingsController.updateBranding
+);
 router.get('/settings', SettingsController.getSettings);
 router.patch(
   '/settings',

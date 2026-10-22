@@ -3,13 +3,22 @@ import { HTTP_STATUS } from '../config/constants.js';
 
 export const SettingsService = {
   async getSettings() {
-    const settings = await prisma.siteSetting.findUnique({
+    let settings = await prisma.siteSetting.findUnique({
       where: { singletonKey: 'global' },
     });
 
     if (!settings) {
       const defaultSettings = {
         singletonKey: 'global',
+        platformName: 'Atelier Valenti Milano',
+        platformShortName: 'AVM',
+        logoUrl: null,
+        logoDarkUrl: null,
+        logoLightUrl: null,
+        faviconUrl: null,
+        browserTitle: 'Atelier Valenti Milano — Handcrafted European Leather Outerwear',
+        metaDescription:
+          'Luxury Italian calfskin and lambskin outerwear crafted by hand in our Milanese atelier. AZO-free certified leather with European express delivery.',
         announcement: {
           enabled: true,
           badge: 'Milano Atelier',
@@ -37,27 +46,81 @@ export const SettingsService = {
         searchKeywords: ['Biker', 'Bomber', 'Shearling', 'Suede', 'Calfskin', 'Nappa', 'Trench'],
       };
 
-      const created = await prisma.siteSetting.create({
+      settings = await prisma.siteSetting.create({
         data: defaultSettings,
       });
-
-      return {
-        id: created.id,
-        _id: created.id,
-        announcement: created.announcement,
-        shipping: created.shipping,
-        footer: created.footer,
-        searchKeywords: created.searchKeywords,
-      };
     }
 
     return {
       id: settings.id,
       _id: settings.id,
+      platformName: settings.platformName || 'Atelier Valenti Milano',
+      platformShortName: settings.platformShortName || 'AVM',
+      logoUrl: settings.logoUrl || null,
+      logoDarkUrl: settings.logoDarkUrl || null,
+      logoLightUrl: settings.logoLightUrl || null,
+      faviconUrl: settings.faviconUrl || null,
+      browserTitle: settings.browserTitle || 'Atelier Valenti Milano — Handcrafted European Leather Outerwear',
+      metaDescription:
+        settings.metaDescription ||
+        'Luxury Italian calfskin and lambskin outerwear crafted by hand in our Milanese atelier. AZO-free certified leather with European express delivery.',
       announcement: settings.announcement,
       shipping: settings.shipping,
       footer: settings.footer,
       searchKeywords: settings.searchKeywords,
+      updatedAt: settings.updatedAt,
+    };
+  },
+
+  async getBranding() {
+    const settings = await this.getSettings();
+    return {
+      platformName: settings.platformName || 'Atelier Valenti Milano',
+      platformShortName: settings.platformShortName || 'AVM',
+      logoUrl: settings.logoUrl || null,
+      logoDarkUrl: settings.logoDarkUrl || null,
+      logoLightUrl: settings.logoLightUrl || null,
+      faviconUrl: settings.faviconUrl || null,
+      browserTitle: settings.browserTitle || 'Atelier Valenti Milano — Handcrafted European Leather Outerwear',
+      metaDescription:
+        settings.metaDescription ||
+        'Luxury Italian calfskin and lambskin outerwear crafted by hand in our Milanese atelier. AZO-free certified leather with European express delivery.',
+      updatedAt: settings.updatedAt,
+    };
+  },
+
+  async updateBranding(data) {
+    const updates = {};
+    if (data.platformName !== undefined) updates.platformName = data.platformName;
+    if (data.platformShortName !== undefined) updates.platformShortName = data.platformShortName || null;
+    if (data.logoUrl !== undefined) updates.logoUrl = data.logoUrl || null;
+    if (data.logoDarkUrl !== undefined) updates.logoDarkUrl = data.logoDarkUrl || null;
+    if (data.logoLightUrl !== undefined) updates.logoLightUrl = data.logoLightUrl || null;
+    if (data.faviconUrl !== undefined) updates.faviconUrl = data.faviconUrl || null;
+    if (data.browserTitle !== undefined) updates.browserTitle = data.browserTitle;
+    if (data.metaDescription !== undefined) updates.metaDescription = data.metaDescription || null;
+
+    const updated = await prisma.siteSetting.upsert({
+      where: { singletonKey: 'global' },
+      update: updates,
+      create: {
+        singletonKey: 'global',
+        ...updates,
+      },
+    });
+
+    return {
+      platformName: updated.platformName || 'Atelier Valenti Milano',
+      platformShortName: updated.platformShortName || 'AVM',
+      logoUrl: updated.logoUrl || null,
+      logoDarkUrl: updated.logoDarkUrl || null,
+      logoLightUrl: updated.logoLightUrl || null,
+      faviconUrl: updated.faviconUrl || null,
+      browserTitle: updated.browserTitle || 'Atelier Valenti Milano — Handcrafted European Leather Outerwear',
+      metaDescription:
+        updated.metaDescription ||
+        'Luxury Italian calfskin and lambskin outerwear crafted by hand in our Milanese atelier. AZO-free certified leather with European express delivery.',
+      updatedAt: updated.updatedAt,
     };
   },
 
@@ -67,6 +130,15 @@ export const SettingsService = {
     if (data.shipping) updates.shipping = data.shipping;
     if (data.footer) updates.footer = data.footer;
     if (data.searchKeywords) updates.searchKeywords = data.searchKeywords;
+
+    if (data.platformName !== undefined) updates.platformName = data.platformName;
+    if (data.platformShortName !== undefined) updates.platformShortName = data.platformShortName || null;
+    if (data.logoUrl !== undefined) updates.logoUrl = data.logoUrl || null;
+    if (data.logoDarkUrl !== undefined) updates.logoDarkUrl = data.logoDarkUrl || null;
+    if (data.logoLightUrl !== undefined) updates.logoLightUrl = data.logoLightUrl || null;
+    if (data.faviconUrl !== undefined) updates.faviconUrl = data.faviconUrl || null;
+    if (data.browserTitle !== undefined) updates.browserTitle = data.browserTitle;
+    if (data.metaDescription !== undefined) updates.metaDescription = data.metaDescription || null;
 
     const updated = await prisma.siteSetting.upsert({
       where: { singletonKey: 'global' },
@@ -80,10 +152,21 @@ export const SettingsService = {
     return {
       id: updated.id,
       _id: updated.id,
+      platformName: updated.platformName || 'Atelier Valenti Milano',
+      platformShortName: updated.platformShortName || 'AVM',
+      logoUrl: updated.logoUrl || null,
+      logoDarkUrl: updated.logoDarkUrl || null,
+      logoLightUrl: updated.logoLightUrl || null,
+      faviconUrl: updated.faviconUrl || null,
+      browserTitle: updated.browserTitle || 'Atelier Valenti Milano — Handcrafted European Leather Outerwear',
+      metaDescription:
+        updated.metaDescription ||
+        'Luxury Italian calfskin and lambskin outerwear crafted by hand in our Milanese atelier. AZO-free certified leather with European express delivery.',
       announcement: updated.announcement,
       shipping: updated.shipping,
       footer: updated.footer,
       searchKeywords: updated.searchKeywords,
+      updatedAt: updated.updatedAt,
     };
   },
 
@@ -210,15 +293,17 @@ export const SettingsService = {
     }
 
     // Fallback global metadata
+    const branding = await this.getBranding();
     return {
-      title: 'ATELIER VALENTI MILANO — Handcrafted European Leather Outerwear',
+      title: branding.browserTitle || 'ATELIER VALENTI MILANO — Handcrafted European Leather Outerwear',
       description:
+        branding.metaDescription ||
         'Luxury Italian calfskin and lambskin outerwear crafted by hand in our Milanese atelier. AZO-free certified leather with European express delivery.',
       canonical: `${baseUrl}${cleanPath}`,
       openGraph: {
-        title: 'ATELIER VALENTI MILANO',
-        description: 'Bespoke and ready-to-wear luxury leather outerwear.',
-        image: `${baseUrl}/og-default.webp`,
+        title: branding.platformName || 'ATELIER VALENTI MILANO',
+        description: branding.metaDescription || 'Bespoke and ready-to-wear luxury leather outerwear.',
+        image: branding.logoUrl || `${baseUrl}/og-default.webp`,
         type: 'website',
       },
     };

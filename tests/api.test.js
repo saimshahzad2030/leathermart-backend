@@ -208,6 +208,15 @@ const { mockDb, prismaMock, supabaseMock } = vi.hoisted(() => {
           cities: ['MILANO', 'PARIS'],
         },
         searchKeywords: ['Biker', 'Bomber'],
+        platformName: 'Atelier Valenti Milano',
+        platformShortName: 'AVM',
+        logoUrl: null,
+        logoDarkUrl: null,
+        logoLightUrl: null,
+        faviconUrl: null,
+        browserTitle: 'Atelier Valenti Milano — Handcrafted European Leather Outerwear',
+        metaDescription:
+          'Luxury Italian calfskin and lambskin outerwear crafted by hand in our Milanese atelier. AZO-free certified leather with European express delivery.',
         createdAt: new Date(),
         updatedAt: new Date(),
       },
@@ -862,6 +871,77 @@ describe('5. Public Content & Homepage API', () => {
     const res = await request(app).get('/api/v1/settings/footer');
     expect(res.status).toBe(200);
     expect(res.body.data.certificationLine).toContain('AZO-Free');
+  });
+
+  it('GET /api/v1/settings/branding should return public branding without authentication', async () => {
+    const res = await request(app).get('/api/v1/settings/branding');
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.platformName).toBe('Atelier Valenti Milano');
+    expect(res.body.data.platformShortName).toBe('AVM');
+    expect(res.body.data).toHaveProperty('logoUrl');
+    expect(res.body.data).toHaveProperty('faviconUrl');
+    expect(res.body.data.browserTitle).toContain('Atelier Valenti Milano');
+  });
+
+  it('GET /api/v1/admin/settings/branding should reject unauthenticated requests', async () => {
+    const res = await request(app).get('/api/v1/admin/settings/branding');
+    expect(res.status).toBe(401);
+  });
+
+  it('GET /api/v1/admin/settings/branding should allow authenticated admin', async () => {
+    const res = await request(app)
+      .get('/api/v1/admin/settings/branding')
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.platformName).toBe('Atelier Valenti Milano');
+  });
+
+  it('PATCH /api/v1/admin/settings/branding should reject unauthenticated requests', async () => {
+    const res = await request(app)
+      .patch('/api/v1/admin/settings/branding')
+      .send({ platformName: 'Unauthorized Brand' });
+    expect(res.status).toBe(401);
+  });
+
+  it('PATCH /api/v1/admin/settings/branding should reject invalid URL values', async () => {
+    const res = await request(app)
+      .patch('/api/v1/admin/settings/branding')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ logoUrl: 'ftp://not-supported-scheme' });
+    expect(res.status).toBe(422);
+  });
+
+  it('PATCH /api/v1/admin/settings/branding should update branding fields and preserve omitted fields', async () => {
+    const res = await request(app)
+      .patch('/api/v1/admin/settings/branding')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        platformName: 'Atelier Valenti Milano VIP',
+        platformShortName: 'AVM VIP',
+        logoUrl: 'https://example.com/logo.svg',
+        faviconUrl: 'https://example.com/favicon.ico',
+        browserTitle: 'Atelier Valenti Milano VIP Outerwear',
+      });
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.platformName).toBe('Atelier Valenti Milano VIP');
+    expect(res.body.data.platformShortName).toBe('AVM VIP');
+    expect(res.body.data.logoUrl).toBe('https://example.com/logo.svg');
+    expect(res.body.data.faviconUrl).toBe('https://example.com/favicon.ico');
+    expect(res.body.data.browserTitle).toBe('Atelier Valenti Milano VIP Outerwear');
+
+    // Partial update preserving omitted fields
+    const partialRes = await request(app)
+      .patch('/api/v1/admin/settings/branding')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        platformName: 'Atelier Valenti Milano Studio',
+      });
+    expect(partialRes.status).toBe(200);
+    expect(partialRes.body.data.platformName).toBe('Atelier Valenti Milano Studio');
+    expect(partialRes.body.data.logoUrl).toBe('https://example.com/logo.svg');
   });
 });
 
