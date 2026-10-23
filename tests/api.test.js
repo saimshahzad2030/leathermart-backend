@@ -873,6 +873,123 @@ describe('5. Public Content & Homepage API', () => {
     expect(res.body.data.certificationLine).toContain('AZO-Free');
   });
 
+  it('PUT /api/v1/settings/footer should reject unauthenticated requests', async () => {
+    const res = await request(app)
+      .put('/api/v1/settings/footer')
+      .send({ certificationLine: 'Unauthorized' });
+    expect(res.status).toBe(401);
+  });
+
+  it('PUT /api/v1/settings/footer should reject invalid link URL formats', async () => {
+    const res = await request(app)
+      .put('/api/v1/settings/footer')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        columns: [
+          {
+            title: 'Catalogue',
+            links: [{ label: 'Biker', href: 'javascript:alert(1)' }],
+          },
+        ],
+      });
+    expect(res.status).toBe(422);
+  });
+
+  it('PUT /api/v1/settings/footer should reject missing required column title or link label', async () => {
+    const res = await request(app)
+      .put('/api/v1/settings/footer')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        columns: [
+          {
+            title: '',
+            links: [{ label: '', href: '/valid-path' }],
+          },
+        ],
+      });
+    expect(res.status).toBe(422);
+  });
+
+  it('PUT /api/v1/settings/footer should update footer configuration and persist changes', async () => {
+    const payload = {
+      certificationLine: '✔️ Certified AZO-Free · ✔️ REACH Compliant Milano',
+      atelierAddress: 'Via della Spiga, 12, 20121 Milano, Italy',
+      copyrightText: '© 2026 Atelier Valenti Milano Luxury Goods. All rights reserved.',
+      instagramHandle: '@ATELIERVALENTI_MILANO',
+      cities: ['MILANO', 'PARIS', 'LONDON', 'NEW YORK'],
+      columns: [
+        {
+          title: 'Haute Leather',
+          links: [
+            { label: 'Trench Coats', href: '/shop?category=trench' },
+            { label: 'Bomber Jackets', href: '/shop?category=bomber' },
+          ],
+        },
+        {
+          title: 'Client Services',
+          links: [
+            { label: 'Bespoke Studio', href: '/customize' },
+            { label: 'Concierge & Contact', href: '/contact' },
+          ],
+        },
+      ],
+    };
+
+    const res = await request(app)
+      .put('/api/v1/settings/footer')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send(payload);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.certificationLine).toBe(payload.certificationLine);
+    expect(res.body.data.atelierAddress).toBe(payload.atelierAddress);
+    expect(res.body.data.copyrightText).toBe(payload.copyrightText);
+    expect(res.body.data.columns).toHaveLength(2);
+    expect(res.body.data.columns[0].title).toBe('Haute Leather');
+    expect(res.body.data.columns[0].links[0].label).toBe('Trench Coats');
+
+    // Verify GET /api/v1/settings/footer delivers the updated data publicly
+    const getRes = await request(app).get('/api/v1/settings/footer');
+    expect(getRes.status).toBe(200);
+    expect(getRes.body.data.certificationLine).toBe(payload.certificationLine);
+    expect(getRes.body.data.atelierAddress).toBe(payload.atelierAddress);
+    expect(getRes.body.data.columns[0].title).toBe('Haute Leather');
+  });
+
+  it('PATCH /api/v1/settings/footer should partially update fields and preserve existing columns', async () => {
+    const patchPayload = {
+      certificationLine: '✔️ Certified AZO-Free · 100% Handcrafted in Italy',
+      atelierAddress: 'Via Montenapoleone, 27, 20121 Milano, Italy',
+    };
+
+    const res = await request(app)
+      .patch('/api/v1/settings/footer')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send(patchPayload);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.certificationLine).toBe(patchPayload.certificationLine);
+    expect(res.body.data.atelierAddress).toBe(patchPayload.atelierAddress);
+    // Preserved columns
+    expect(res.body.data.columns).toBeDefined();
+    expect(res.body.data.columns[0].title).toBe('Haute Leather');
+  });
+
+  it('PUT /api/v1/admin/settings/footer should allow authenticated admin update', async () => {
+    const res = await request(app)
+      .put('/api/v1/admin/settings/footer')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        copyrightText: '© 2026 Atelier Valenti Milano S.r.l.',
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.copyrightText).toBe('© 2026 Atelier Valenti Milano S.r.l.');
+  });
+
   it('GET /api/v1/settings/branding should return public branding without authentication', async () => {
     const res = await request(app).get('/api/v1/settings/branding');
     expect(res.status).toBe(200);

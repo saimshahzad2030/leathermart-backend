@@ -73,6 +73,36 @@ Delivers mega-menu categories, styles, shop-by-leather options, and featured car
 #### `GET /api/v1/settings/footer`
 Delivers footer navigation columns, certification badge line (`✔️ AZO-Free Leather · ✔️ EU REACH Compliant`), atelier physical address, and copyright text.
 
+#### `PUT /api/v1/settings/footer` & `PATCH /api/v1/settings/footer`
+Updates footer configuration including navigation columns, trust badge certification line, atelier address, and copyright text.
+* **Authentication:** Required (`Bearer <adminToken>`, Role: `super_admin`, `store_manager`)
+* **Request Body:**
+  ```json
+  {
+    "certificationLine": "✔️ AZO-Free Leather · ✔️ EU REACH Compliant",
+    "atelierAddress": "Via Montenapoleone, 27, 20121 Milano, Italy",
+    "instagramHandle": "@ATELIERVALENTI",
+    "copyrightText": "© 2026 Atelier Valenti Milano. All rights reserved.",
+    "cities": ["MILANO", "PARIS", "ZURICH", "MUNICH"],
+    "columns": [
+      {
+        "title": "Catalogue",
+        "links": [
+          { "label": "Biker Jackets", "href": "/shop?category=biker" },
+          { "label": "Bomber Jackets", "href": "/shop?category=bomber" }
+        ]
+      },
+      {
+        "title": "Client Care",
+        "links": [
+          { "label": "Bespoke Commissions", "href": "/customize" },
+          { "label": "Client Concierge & Contact Us", "href": "/contact" }
+        ]
+      }
+    ]
+  }
+  ```
+
 #### `GET /api/v1/settings/shipping`
 Returns European shipping zones, delivery timeframes, and free delivery thresholds (€250).
 
@@ -296,6 +326,7 @@ Submits client bespoke commission.
 |---|---|---|
 | `GET` | `/api/v1/admin/settings` | Retrieve global site configuration |
 | `PATCH` | `/api/v1/admin/settings` | Update announcement, shipping, footer, address |
+| `GET / PUT / PATCH` | `/api/v1/admin/settings/footer` | Retrieve and update footer columns, badge, address |
 | `PUT` | `/api/v1/admin/settings/search-keywords` | Update search keyword chips |
 | `GET` | `/api/v1/admin/navigation/mega-menu` | Get mega-menu tree |
 | `PUT` | `/api/v1/admin/navigation/mega-menu/:menuKey` | Update specific menu (`men`, `women`, `customize`) |

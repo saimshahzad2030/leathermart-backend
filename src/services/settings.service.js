@@ -42,6 +42,36 @@ export const SettingsService = {
           instagramHandle: '@ATELIERVALENTI',
           copyrightText: '© 2026 Atelier Valenti Milano. All rights reserved.',
           cities: ['MILANO', 'PARIS', 'ZURICH', 'MUNICH'],
+          columns: [
+            {
+              title: 'Catalogue',
+              links: [
+                { label: 'Biker Jackets', href: '/shop?category=biker' },
+                { label: 'Bomber Jackets', href: '/shop?category=bomber' },
+                { label: 'Leather Coats', href: '/shop?category=leather-coats' },
+                { label: 'Leather Blazers', href: '/shop?category=leather-blazers' },
+                { label: 'Leather Accessories', href: '/shop?category=leather-accessories' },
+              ],
+            },
+            {
+              title: 'Client Care',
+              links: [
+                { label: 'Bespoke Commissions', href: '/customize' },
+                { label: 'Size & Fit Architecture', href: '/craftsmanship' },
+                { label: 'European Shipping & Duties', href: '/cart' },
+                { label: 'Lifetime Atelier Guarantee', href: '/craftsmanship' },
+                { label: 'Client Concierge & Contact Us', href: '/contact' },
+              ],
+            },
+            {
+              title: 'The Atelier',
+              links: [
+                { label: 'Heritage & Craftsmanship', href: '/craftsmanship' },
+                { label: 'Tannery Certifications', href: '/craftsmanship' },
+                { label: 'Via Montenapoleone Workshop', href: '/craftsmanship' },
+              ],
+            },
+          ],
         },
         searchKeywords: ['Biker', 'Bomber', 'Shearling', 'Suede', 'Calfskin', 'Nappa', 'Trench'],
       };
@@ -128,7 +158,15 @@ export const SettingsService = {
     const updates = {};
     if (data.announcement) updates.announcement = data.announcement;
     if (data.shipping) updates.shipping = data.shipping;
-    if (data.footer) updates.footer = data.footer;
+    if (data.footer) {
+      const current = await this.getSettings();
+      const existingFooter =
+        current.footer && typeof current.footer === 'object' ? current.footer : {};
+      updates.footer = {
+        ...existingFooter,
+        ...data.footer,
+      };
+    }
     if (data.searchKeywords) updates.searchKeywords = data.searchKeywords;
 
     if (data.platformName !== undefined) updates.platformName = data.platformName;
@@ -173,6 +211,30 @@ export const SettingsService = {
   async getFooterSettings() {
     const settings = await this.getSettings();
     return settings.footer;
+  },
+
+  async updateFooterSettings(footerData) {
+    const currentSettings = await this.getSettings();
+    const existingFooter =
+      currentSettings.footer && typeof currentSettings.footer === 'object'
+        ? currentSettings.footer
+        : {};
+
+    const updatedFooter = {
+      ...existingFooter,
+      ...footerData,
+    };
+
+    const updated = await prisma.siteSetting.upsert({
+      where: { singletonKey: 'global' },
+      update: { footer: updatedFooter },
+      create: {
+        singletonKey: 'global',
+        footer: updatedFooter,
+      },
+    });
+
+    return updated.footer;
   },
 
   async getAnnouncement() {

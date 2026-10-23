@@ -12,6 +12,18 @@ export const SettingsController = {
     }
   },
 
+  async updateFooter(req, res, next) {
+    try {
+      const footer = await SettingsService.updateFooterSettings(req.body);
+      return ApiResponse.success(res, {
+        message: 'Footer settings updated successfully',
+        data: footer,
+      });
+    } catch (err) {
+      next(err);
+    }
+  },
+
   async getAnnouncement(req, res, next) {
     try {
       const announcement = await SettingsService.getAnnouncement();

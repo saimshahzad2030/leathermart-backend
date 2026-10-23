@@ -69,6 +69,7 @@ import {
   updateSettingsSchema,
   updateBrandingSchema,
   updateSearchKeywordsSchema,
+  updateFooterSchema,
 } from '../validators/settings.validator.js';
 
 const router = Router();
@@ -502,6 +503,19 @@ router.patch(
   authorize(ROLES.SUPER_ADMIN, ROLES.STORE_MANAGER),
   validate(updateSettingsSchema),
   SettingsController.updateSettings
+);
+router.get('/settings/footer', SettingsController.getFooter);
+router.put(
+  '/settings/footer',
+  authorize(ROLES.SUPER_ADMIN, ROLES.STORE_MANAGER),
+  validate(updateFooterSchema),
+  SettingsController.updateFooter
+);
+router.patch(
+  '/settings/footer',
+  authorize(ROLES.SUPER_ADMIN, ROLES.STORE_MANAGER),
+  validate(updateFooterSchema),
+  SettingsController.updateFooter
 );
 router.put(
   '/settings/search-keywords',
