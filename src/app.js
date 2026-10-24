@@ -24,7 +24,7 @@ app.use(
 );
 
 // CORS configuration
-const allowedOrigins = [
+const rawOrigins = [
   env.FRONTEND_URL,
   env.ADMIN_URL,
   'http://localhost:3000',
@@ -34,26 +34,38 @@ const allowedOrigins = [
   ...(process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',').map((s) => s.trim()) : []),
 ].filter(Boolean);
 
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      // Allow requests with no origin (like mobile apps, curl, server-to-server)
-      if (!origin) return callback(null, true);
-      const isAllowed =
-        allowedOrigins.includes(origin) ||
-        origin.endsWith('.vercel.app') ||
-        env.isDev ||
-        env.isTest;
-      if (isAllowed) {
-        return callback(null, true);
-      }
-      return callback(new Error('CORS policy: This origin is not allowed by Access-Control-Allow-Origin'));
-    },
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
-  })
-);
+const allowedOrigins = [...new Set(rawOrigins.map((origin) => origin.replace(/\/+$/, '')))];
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps, curl, server-to-server)
+    if (!origin) return callback(null, true);
+    const normalizedOrigin = origin.replace(/\/+$/, '');
+    const isAllowed =
+      allowedOrigins.includes(normalizedOrigin) ||
+      origin.endsWith('.vercel.app') ||
+      env.isDev ||
+      env.isTest;
+    if (isAllowed) {
+      return callback(null, true);
+    }
+    return callback(new Error('CORS policy: This origin is not allowed by Access-Control-Allow-Origin'));
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'X-Requested-With',
+    'Accept',
+    'x-market',
+    'X-Market',
+  ],
+  optionsSuccessStatus: 204,
+};
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 
 // Compression & parsing
 app.use(compression());
@@ -94,6 +106,7 @@ app.get('/', (req, res) => {
     data: {
       documentation: '/api/health',
       version: '1.0.0',
+
     },
   });
 });

@@ -31,11 +31,31 @@ export function errorHandler(err, req, res, next) {
 
   // Prisma Foreign Key Constraint (Code P2003) / PostgreSQL (Code 23503)
   if (err.code === 'P2003' || err.code === '23503') {
+    const isCategoryDelete =
+      req.method === 'DELETE' &&
+      (req.originalUrl?.includes('/categories') || err.message?.includes('delete on table "categories"'));
+
+    if (isCategoryDelete) {
+      return ApiResponse.error(res, {
+        message: 'Cannot delete category because it is being used by products.',
+        errorCode: 'CATEGORY_IN_USE',
+        statusCode: HTTP_STATUS.CONFLICT,
+        details: err.details || null,
+      });
+    }
+
+    if (err.message?.includes('products_category_slug_fkey')) {
+      return ApiResponse.error(res, {
+        message: 'The specified category does not exist.',
+        errorCode: 'ERR_INVALID_CATEGORY',
+        statusCode: HTTP_STATUS.BAD_REQUEST,
+        details: err.details || null,
+      });
+    }
+
     return ApiResponse.error(res, {
-      message: err.message?.includes('products_category_slug_fkey')
-        ? 'Cannot delete category because it is being used by products.'
-        : (err.message || 'Cannot perform operation because this record is referenced by other resources'),
-      errorCode: err.errorCode || 'CATEGORY_IN_USE',
+      message: err.message || 'Cannot perform operation because this record is referenced by or references other resources',
+      errorCode: err.errorCode || 'ERR_FOREIGN_KEY_VIOLATION',
       statusCode: HTTP_STATUS.CONFLICT,
       details: err.details || null,
     });

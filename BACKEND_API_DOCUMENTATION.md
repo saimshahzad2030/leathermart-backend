@@ -1824,6 +1824,12 @@ Admins can configure the silhouettes, leathers, colors, linings, and hardware ch
 #### `GET /api/v1/settings/footer`
 * **Returns:** Footer navigation columns, European certifications (`✔️ AZO-Free Leather · ✔️ EU REACH Compliant`), atelier Milan address, and copyright text.
 
+#### `PUT /api/v1/settings/footer` & `PATCH /api/v1/settings/footer`
+* **Purpose:** Updates footer navigation columns, certification badge, atelier address, Instagram handle, and copyright notice.
+* **Authentication:** Required (`Bearer <adminToken>`, Role: `super_admin`, `store_manager`).
+* **Validation:** Validates URL formats, column titles, and link labels. Supports partial updates via PATCH.
+* **Returns:** Updated footer settings object.
+
 #### `GET /api/v1/settings/announcement`
 * **Returns:** Top announcement banner configuration (`enabled`, `badge`, `message`, `linkText`, `linkHref`, `countryNotice`).
 
@@ -2246,6 +2252,9 @@ ADMIN PANEL FRONTEND
 └── Site Settings & Navigation
     ├── GET    /admin/settings                    (Global settings form)
     ├── PATCH  /admin/settings                    (Save announcement / shipping / footer)
+    ├── GET    /admin/settings/footer             (Retrieve footer settings)
+    ├── PUT    /admin/settings/footer             (Replace footer navigation & metadata)
+    ├── PATCH  /admin/settings/footer             (Partial update footer)
     ├── PUT    /admin/settings/search-keywords    (Search suggestion chips editor)
     ├── GET    /admin/navigation/mega-menu        (Mega menu navigation manager)
     └── PUT    /admin/navigation/mega-menu/:key   (Save menu category tree)

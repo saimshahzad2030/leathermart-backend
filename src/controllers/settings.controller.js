@@ -12,6 +12,18 @@ export const SettingsController = {
     }
   },
 
+  async updateFooter(req, res, next) {
+    try {
+      const footer = await SettingsService.updateFooterSettings(req.body);
+      return ApiResponse.success(res, {
+        message: 'Footer settings updated successfully',
+        data: footer,
+      });
+    } catch (err) {
+      next(err);
+    }
+  },
+
   async getAnnouncement(req, res, next) {
     try {
       const announcement = await SettingsService.getAnnouncement();
@@ -58,6 +70,15 @@ export const SettingsController = {
     }
   },
 
+  async getBranding(req, res, next) {
+    try {
+      const branding = await SettingsService.getBranding();
+      return ApiResponse.success(res, { data: branding });
+    } catch (err) {
+      next(err);
+    }
+  },
+
   // Admin
   async getSettings(req, res, next) {
     try {
@@ -74,6 +95,18 @@ export const SettingsController = {
       return ApiResponse.success(res, {
         message: 'Settings updated successfully',
         data: settings,
+      });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  async updateBranding(req, res, next) {
+    try {
+      const branding = await SettingsService.updateBranding(req.body);
+      return ApiResponse.success(res, {
+        message: 'Platform branding updated successfully',
+        data: branding,
       });
     } catch (err) {
       next(err);

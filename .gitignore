@@ -7,8 +7,11 @@ node_modules/
 .env
 .env.local
 .env.*.local
+.env.staging
+.env.*.staging
 !.env.example
-
+.env.staging.example
+.env.example
 # Logs
 logs/
 *.log
@@ -47,3 +50,7 @@ Thumbs.db
 !.vscode/settings.json
 *.sublime-project
 *.sublime-workspace
+
+.env.staging.example
+
+.env.staging.example

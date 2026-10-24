@@ -1,3 +1,5 @@
+import { PricingService } from '../services/pricing.service.js';
+
 /**
  * Utility functions to convert between PostgreSQL snake_case and Frontend camelCase
  */
@@ -40,7 +42,7 @@ export function mapKeysToSnake(obj) {
   }, {});
 }
 
-export function mapProduct(p) {
+export function mapProduct(p, market = 'GLOBAL') {
   if (!p) return null;
 
   const rawImages = p.images || p.product_images || [];
@@ -54,15 +56,25 @@ export function mapProduct(p) {
   }));
 
   const rawVariants = p.variants || p.product_variants || [];
-  const variants = rawVariants.map((v) => ({
-    id: v.id,
-    sku: v.sku,
-    size: v.size,
-    color: v.color,
-    colorHex: v.colorHex ?? v.color_hex,
-    stock: v.stock || 0,
-    priceOverride: (v.priceOverride ?? v.price_override) ? Number(v.priceOverride ?? v.price_override) : undefined,
-  }));
+  const variants = rawVariants.map((v) => {
+    const inStock = v.inStock !== undefined
+      ? Boolean(v.inStock)
+      : v.in_stock !== undefined
+        ? Boolean(v.in_stock)
+        : v.stock !== undefined && v.stock !== null
+          ? Number(v.stock) > 0
+          : true;
+
+    return {
+      id: v.id,
+      sku: v.sku,
+      size: v.size,
+      color: v.color,
+      colorHex: v.colorHex ?? v.color_hex,
+      inStock,
+      priceOverride: (v.priceOverride ?? v.price_override) ? Number(v.priceOverride ?? v.price_override) : undefined,
+    };
+  });
 
   const rawReviews = p.reviews || p.product_reviews || [];
   const reviews = rawReviews.map((r) => ({
@@ -79,6 +91,87 @@ export function mapProduct(p) {
   const categorySlug = p.categorySlug || p.category_slug || (typeof p.category === 'string' ? p.category : p.category?.slug);
   const categoryLabel = p.categoryLabel || p.category_label || p.category?.name || '';
 
+  // Extract relational sizes
+  const rawSizeAssignments = Array.isArray(p.sizeAssignments)
+    ? p.sizeAssignments
+    : Array.isArray(p.sizeAssignments?.create)
+    ? p.sizeAssignments.create
+    : [];
+  const sizes = rawSizeAssignments
+    .map((sa) => sa.size || sa)
+    .filter(Boolean)
+    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+
+  const availableSizes = sizes.length > 0
+    ? sizes.map((s) => s.name || s)
+    : p.availableSizes || p.available_sizes || [];
+
+  // Extract relational colors
+  const rawColorAssignments = Array.isArray(p.colorAssignments)
+    ? p.colorAssignments
+    : Array.isArray(p.colorAssignments?.create)
+    ? p.colorAssignments.create
+    : [];
+  const colors = rawColorAssignments
+    .map((ca) => ca.color || ca)
+    .filter(Boolean)
+    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+
+  const availableColors = colors.length > 0
+    ? colors.map((c) => ({ name: c.name || c, hex: c.hex || c.hexCode }))
+    : p.availableColors || p.available_colors || [];
+
+  // Extract relational policies
+  const rawPolicyAssignments = Array.isArray(p.policyAssignments)
+    ? p.policyAssignments
+    : Array.isArray(p.policyAssignments?.create)
+    ? p.policyAssignments.create
+    : [];
+  const policies = rawPolicyAssignments
+    .map((pa) => ({
+      id: pa.policy?.id || pa.policyId,
+      name: pa.policy?.name || pa.name || '',
+      slug: pa.policy?.slug || pa.slug || '',
+      description: pa.policy?.description || pa.description || '',
+      bulletPoints: pa.policy?.bulletPoints || pa.bulletPoints || [],
+      sortOrder: pa.sortOrder ?? pa.policy?.sortOrder ?? 0,
+      isActive: pa.policy?.isActive ?? true,
+    }))
+    .filter((pol) => pol.name)
+    .sort((a, b) => a.sortOrder - b.sortOrder);
+
+  // Extract regional prices
+  const rawPrices = Array.isArray(p.prices)
+    ? p.prices
+    : Array.isArray(p.prices?.create)
+    ? p.prices.create
+    : Array.isArray(p.product_prices)
+    ? p.product_prices
+    : [];
+  const regionalPrices = rawPrices.map((rp) => ({
+    id: rp.id,
+    regionCode: rp.regionCode || rp.region_code,
+    currency: rp.currency,
+    price: Number(rp.price),
+    salePrice: rp.salePrice !== null && rp.salePrice !== undefined ? Number(rp.salePrice) : null,
+    isActive: rp.isActive ?? rp.is_active ?? true,
+  }));
+
+  // Resolve pricing for requested market
+  const resolvedPrice = PricingService.resolvePrice(p, market);
+
+  // Product-level master stock flag
+  const productIsInStock = p.isInStock !== undefined
+    ? Boolean(p.isInStock)
+    : p.is_in_stock !== undefined
+      ? Boolean(p.is_in_stock)
+      : true;
+
+  // Overall product stock: available if product-level flag is true AND (if variants exist, at least one variant is in stock)
+  const isProductInStock = productIsInStock && (variants.length > 0
+    ? variants.some((v) => v.inStock)
+    : true);
+
   return {
     id: p.id,
     _id: p.id,
@@ -91,12 +184,18 @@ export function mapProduct(p) {
     collectionId: p.collectionId || p.collection_id,
     gender: p.gender,
     styles: p.styles || [],
-    price: Number(p.price),
-    salePrice: (p.salePrice ?? p.sale_price) ? Number(p.salePrice ?? p.sale_price) : undefined,
+    price: resolvedPrice ? resolvedPrice.price : Number(p.price),
+    salePrice: resolvedPrice?.salePrice !== null ? resolvedPrice.salePrice : ((p.salePrice ?? p.sale_price) ? Number(p.salePrice ?? p.sale_price) : undefined),
+    resolvedPrice,
+    regionalPrices,
+    currency: resolvedPrice?.currency || 'EUR',
+    currencySymbol: resolvedPrice?.symbol || '€',
     isFeatured: p.isFeatured ?? p.is_featured ?? false,
     isBestseller: p.isBestseller ?? p.is_bestseller ?? false,
     isNewArrival: p.isNewArrival ?? p.is_new_arrival ?? false,
     isPublished: p.isPublished ?? p.is_published ?? true,
+    isInStock: productIsInStock,
+    inStock: isProductInStock,
     leatherType: p.leatherType || p.leather_type,
     hardware: p.hardware || '',
     lining: p.lining || '',
@@ -107,8 +206,11 @@ export function mapProduct(p) {
     modelInfo: p.modelInfo || p.model_info || '',
     images,
     variants,
-    availableColors: p.availableColors || p.available_colors || [],
-    availableSizes: p.availableSizes || p.available_sizes || [],
+    sizes,
+    colors,
+    policies,
+    availableColors,
+    availableSizes,
     rating: Number(p.rating || 5.0),
     reviewCount: Number(p.reviewCount || p.review_count || 0),
     reviews,

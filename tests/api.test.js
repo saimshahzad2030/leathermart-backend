@@ -208,6 +208,15 @@ const { mockDb, prismaMock, supabaseMock } = vi.hoisted(() => {
           cities: ['MILANO', 'PARIS'],
         },
         searchKeywords: ['Biker', 'Bomber'],
+        platformName: 'Atelier Valenti Milano',
+        platformShortName: 'AVM',
+        logoUrl: null,
+        logoDarkUrl: null,
+        logoLightUrl: null,
+        faviconUrl: null,
+        browserTitle: 'Atelier Valenti Milano — Handcrafted European Leather Outerwear',
+        metaDescription:
+          'Luxury Italian calfskin and lambskin outerwear crafted by hand in our Milanese atelier. AZO-free certified leather with European express delivery.',
         createdAt: new Date(),
         updatedAt: new Date(),
       },
@@ -249,6 +258,13 @@ const { mockDb, prismaMock, supabaseMock } = vi.hoisted(() => {
     newsletterSubscriber: [],
     customCommission: [],
     mediaAsset: [],
+    productSize: [],
+    productSizeAssignment: [],
+    productColor: [],
+    productColorAssignment: [],
+    productPrice: [],
+    productPolicy: [],
+    productPolicyAssignment: [],
   };
 
   function matchesFilter(item, where) {
@@ -313,6 +329,25 @@ const { mockDb, prismaMock, supabaseMock } = vi.hoisted(() => {
       if (include.variants) {
         cloned.variants = (db.productVariant || [])
           .filter((v) => v.productId === item.id);
+      }
+      if (include.prices) {
+        cloned.prices = (db.productPrice || [])
+          .filter((p) => p.productId === item.id);
+      }
+      if (include.sizeAssignments) {
+        cloned.sizeAssignments = (db.productSizeAssignment || [])
+          .filter((sa) => sa.productId === item.id)
+          .map((sa) => ({ ...sa, size: (db.productSize || []).find((s) => s.id === sa.sizeId) }));
+      }
+      if (include.colorAssignments) {
+        cloned.colorAssignments = (db.productColorAssignment || [])
+          .filter((ca) => ca.productId === item.id)
+          .map((ca) => ({ ...ca, color: (db.productColor || []).find((c) => c.id === ca.colorId) }));
+      }
+      if (include.policyAssignments) {
+        cloned.policyAssignments = (db.productPolicyAssignment || [])
+          .filter((pa) => pa.productId === item.id)
+          .map((pa) => ({ ...pa, policy: (db.productPolicy || []).find((p) => p.id === pa.policyId) }));
       }
       if (include.reviews) {
         cloned.reviews = (db.productReview || [])
@@ -389,7 +424,7 @@ const { mockDb, prismaMock, supabaseMock } = vi.hoisted(() => {
       },
       create: async ({ data, include }) => {
         const id = data.id || `mock-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
-        const { images, variants, reviews, ...fields } = data;
+        const { images, variants, reviews, sizeAssignments, colorAssignments, policyAssignments, prices, ...fields } = data;
         const newItem = {
           ...fields,
           id,
@@ -434,6 +469,30 @@ const { mockDb, prismaMock, supabaseMock } = vi.hoisted(() => {
                 productId: id,
                 createdAt: new Date(),
               });
+            });
+          }
+          if (sizeAssignments?.create) {
+            const arr = Array.isArray(sizeAssignments.create) ? sizeAssignments.create : [sizeAssignments.create];
+            arr.forEach((sa) => {
+              db.productSizeAssignment.push({ ...sa, id: `psa-${Date.now()}-${Math.random()}`, productId: id });
+            });
+          }
+          if (colorAssignments?.create) {
+            const arr = Array.isArray(colorAssignments.create) ? colorAssignments.create : [colorAssignments.create];
+            arr.forEach((ca) => {
+              db.productColorAssignment.push({ ...ca, id: `pca-${Date.now()}-${Math.random()}`, productId: id });
+            });
+          }
+          if (policyAssignments?.create) {
+            const arr = Array.isArray(policyAssignments.create) ? policyAssignments.create : [policyAssignments.create];
+            arr.forEach((pa) => {
+              db.productPolicyAssignment.push({ ...pa, id: `ppa-${Date.now()}-${Math.random()}`, productId: id });
+            });
+          }
+          if (prices?.create) {
+            const arr = Array.isArray(prices.create) ? prices.create : [prices.create];
+            arr.forEach((pr) => {
+              db.productPrice.push({ ...pr, id: `pr-${Date.now()}-${Math.random()}`, productId: id });
             });
           }
         }
@@ -524,6 +583,13 @@ const { mockDb, prismaMock, supabaseMock } = vi.hoisted(() => {
     'navigationMenu',
     'newsletterSubscriber',
     'mediaAsset',
+    'productSize',
+    'productSizeAssignment',
+    'productColor',
+    'productColorAssignment',
+    'productPrice',
+    'productPolicy',
+    'productPolicyAssignment',
   ];
 
   const pMock = {
@@ -712,6 +778,8 @@ describe('4. Admin Product CRUD Operations', () => {
         leatherType: 'Plonge Nappa Lambskin',
         description: 'New architectural biker jacket designed for modern layering.',
         styles: ['biker', 'luxury'],
+        sizes: ['48 (EU M)'],
+        colors: ['Obsidian Black'],
       });
 
     expect(res.status).toBe(201);
@@ -803,6 +871,194 @@ describe('5. Public Content & Homepage API', () => {
     const res = await request(app).get('/api/v1/settings/footer');
     expect(res.status).toBe(200);
     expect(res.body.data.certificationLine).toContain('AZO-Free');
+  });
+
+  it('PUT /api/v1/settings/footer should reject unauthenticated requests', async () => {
+    const res = await request(app)
+      .put('/api/v1/settings/footer')
+      .send({ certificationLine: 'Unauthorized' });
+    expect(res.status).toBe(401);
+  });
+
+  it('PUT /api/v1/settings/footer should reject invalid link URL formats', async () => {
+    const res = await request(app)
+      .put('/api/v1/settings/footer')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        columns: [
+          {
+            title: 'Catalogue',
+            links: [{ label: 'Biker', href: 'javascript:alert(1)' }],
+          },
+        ],
+      });
+    expect(res.status).toBe(422);
+  });
+
+  it('PUT /api/v1/settings/footer should reject missing required column title or link label', async () => {
+    const res = await request(app)
+      .put('/api/v1/settings/footer')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        columns: [
+          {
+            title: '',
+            links: [{ label: '', href: '/valid-path' }],
+          },
+        ],
+      });
+    expect(res.status).toBe(422);
+  });
+
+  it('PUT /api/v1/settings/footer should update footer configuration and persist changes', async () => {
+    const payload = {
+      certificationLine: '✔️ Certified AZO-Free · ✔️ REACH Compliant Milano',
+      atelierAddress: 'Via della Spiga, 12, 20121 Milano, Italy',
+      copyrightText: '© 2026 Atelier Valenti Milano Luxury Goods. All rights reserved.',
+      instagramHandle: '@ATELIERVALENTI_MILANO',
+      cities: ['MILANO', 'PARIS', 'LONDON', 'NEW YORK'],
+      columns: [
+        {
+          title: 'Haute Leather',
+          links: [
+            { label: 'Trench Coats', href: '/shop?category=trench' },
+            { label: 'Bomber Jackets', href: '/shop?category=bomber' },
+          ],
+        },
+        {
+          title: 'Client Services',
+          links: [
+            { label: 'Bespoke Studio', href: '/customize' },
+            { label: 'Concierge & Contact', href: '/contact' },
+          ],
+        },
+      ],
+    };
+
+    const res = await request(app)
+      .put('/api/v1/settings/footer')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send(payload);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.certificationLine).toBe(payload.certificationLine);
+    expect(res.body.data.atelierAddress).toBe(payload.atelierAddress);
+    expect(res.body.data.copyrightText).toBe(payload.copyrightText);
+    expect(res.body.data.columns).toHaveLength(2);
+    expect(res.body.data.columns[0].title).toBe('Haute Leather');
+    expect(res.body.data.columns[0].links[0].label).toBe('Trench Coats');
+
+    // Verify GET /api/v1/settings/footer delivers the updated data publicly
+    const getRes = await request(app).get('/api/v1/settings/footer');
+    expect(getRes.status).toBe(200);
+    expect(getRes.body.data.certificationLine).toBe(payload.certificationLine);
+    expect(getRes.body.data.atelierAddress).toBe(payload.atelierAddress);
+    expect(getRes.body.data.columns[0].title).toBe('Haute Leather');
+  });
+
+  it('PATCH /api/v1/settings/footer should partially update fields and preserve existing columns', async () => {
+    const patchPayload = {
+      certificationLine: '✔️ Certified AZO-Free · 100% Handcrafted in Italy',
+      atelierAddress: 'Via Montenapoleone, 27, 20121 Milano, Italy',
+    };
+
+    const res = await request(app)
+      .patch('/api/v1/settings/footer')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send(patchPayload);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.certificationLine).toBe(patchPayload.certificationLine);
+    expect(res.body.data.atelierAddress).toBe(patchPayload.atelierAddress);
+    // Preserved columns
+    expect(res.body.data.columns).toBeDefined();
+    expect(res.body.data.columns[0].title).toBe('Haute Leather');
+  });
+
+  it('PUT /api/v1/admin/settings/footer should allow authenticated admin update', async () => {
+    const res = await request(app)
+      .put('/api/v1/admin/settings/footer')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        copyrightText: '© 2026 Atelier Valenti Milano S.r.l.',
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.copyrightText).toBe('© 2026 Atelier Valenti Milano S.r.l.');
+  });
+
+  it('GET /api/v1/settings/branding should return public branding without authentication', async () => {
+    const res = await request(app).get('/api/v1/settings/branding');
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.platformName).toBe('Atelier Valenti Milano');
+    expect(res.body.data.platformShortName).toBe('AVM');
+    expect(res.body.data).toHaveProperty('logoUrl');
+    expect(res.body.data).toHaveProperty('faviconUrl');
+    expect(res.body.data.browserTitle).toContain('Atelier Valenti Milano');
+  });
+
+  it('GET /api/v1/admin/settings/branding should reject unauthenticated requests', async () => {
+    const res = await request(app).get('/api/v1/admin/settings/branding');
+    expect(res.status).toBe(401);
+  });
+
+  it('GET /api/v1/admin/settings/branding should allow authenticated admin', async () => {
+    const res = await request(app)
+      .get('/api/v1/admin/settings/branding')
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.platformName).toBe('Atelier Valenti Milano');
+  });
+
+  it('PATCH /api/v1/admin/settings/branding should reject unauthenticated requests', async () => {
+    const res = await request(app)
+      .patch('/api/v1/admin/settings/branding')
+      .send({ platformName: 'Unauthorized Brand' });
+    expect(res.status).toBe(401);
+  });
+
+  it('PATCH /api/v1/admin/settings/branding should reject invalid URL values', async () => {
+    const res = await request(app)
+      .patch('/api/v1/admin/settings/branding')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ logoUrl: 'ftp://not-supported-scheme' });
+    expect(res.status).toBe(422);
+  });
+
+  it('PATCH /api/v1/admin/settings/branding should update branding fields and preserve omitted fields', async () => {
+    const res = await request(app)
+      .patch('/api/v1/admin/settings/branding')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        platformName: 'Atelier Valenti Milano VIP',
+        platformShortName: 'AVM VIP',
+        logoUrl: 'https://example.com/logo.svg',
+        faviconUrl: 'https://example.com/favicon.ico',
+        browserTitle: 'Atelier Valenti Milano VIP Outerwear',
+      });
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.platformName).toBe('Atelier Valenti Milano VIP');
+    expect(res.body.data.platformShortName).toBe('AVM VIP');
+    expect(res.body.data.logoUrl).toBe('https://example.com/logo.svg');
+    expect(res.body.data.faviconUrl).toBe('https://example.com/favicon.ico');
+    expect(res.body.data.browserTitle).toBe('Atelier Valenti Milano VIP Outerwear');
+
+    // Partial update preserving omitted fields
+    const partialRes = await request(app)
+      .patch('/api/v1/admin/settings/branding')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        platformName: 'Atelier Valenti Milano Studio',
+      });
+    expect(partialRes.status).toBe(200);
+    expect(partialRes.body.data.platformName).toBe('Atelier Valenti Milano Studio');
+    expect(partialRes.body.data.logoUrl).toBe('https://example.com/logo.svg');
   });
 });
 
