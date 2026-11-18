@@ -1,6 +1,10 @@
 import { prisma } from '../lib/prisma.js';
 import { HTTP_STATUS } from '../config/constants.js';
 
+let navigationCache = null;
+let navigationCacheTimestamp = 0;
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes TTL
+
 export const SettingsService = {
   async getSettings() {
     let settings = await prisma.siteSetting.findUnique({
@@ -264,25 +268,55 @@ export const SettingsService = {
     if (menuKey) {
       const menu = await prisma.navigationMenu.findUnique({
         where: { menuKey },
+        select: { menuKey: true, payload: true },
       });
       return menu ? menu.payload : null;
     }
 
-    const menus = await prisma.navigationMenu.findMany();
-    const map = {};
-    menus.forEach((m) => {
-      map[m.menuKey] = m.payload;
+    const menus = await prisma.navigationMenu.findMany({
+      select: { menuKey: true, payload: true },
     });
+    const map = {};
+    if (Array.isArray(menus)) {
+      menus.forEach((m) => {
+        if (m.menuKey && m.payload) {
+          map[m.menuKey] = m.payload;
+        }
+      });
+    }
     return map;
   },
 
   async updateNavigationMenu(menuKey, payload) {
+    const dept = (menuKey || '').toLowerCase().trim();
+    const name =
+      dept === 'men'
+        ? 'Men Navigation'
+        : dept === 'women'
+          ? 'Women Navigation'
+          : `${dept.charAt(0).toUpperCase() + dept.slice(1)} Navigation`;
+
     const updated = await prisma.navigationMenu.upsert({
       where: { menuKey },
       update: { payload },
-      create: { menuKey, payload },
+      create: {
+        menuKey,
+        payload,
+        department: dept,
+        slug: dept,
+        name,
+      },
+      select: { payload: true },
     });
+    // Invalidate in-memory cache
+    navigationCache = null;
+    navigationCacheTimestamp = 0;
     return updated.payload;
+  },
+
+  invalidateNavigationCache() {
+    navigationCache = null;
+    navigationCacheTimestamp = 0;
   },
 
   async getSeoMetadata(requestPath = '/') {

@@ -1061,77 +1061,28 @@ export async function runSeed({ reset = false } = {}) {
 
     // 12. Seed Navigation Menus
     logger.info('Seeding navigation menus...');
-    const menPayload = {
-      id: 'men',
-      label: 'MEN',
-      href: '/men',
-      categories: [
-        { label: 'Biker Jackets', href: '/men/biker' },
-        { label: 'Bomber Jackets', href: '/men/bomber' },
-        { label: 'Leather Coats', href: '/men/leather-coats' },
-        { label: 'Leather Blazers', href: '/men/leather-blazers' },
-        { label: 'Leather Accessories', href: '/men/leather-accessories' },
-        { label: 'New Arrivals', href: '/men?is_new=true', badge: 'New' },
-        { label: 'Best Sellers', href: '/men?is_bestseller=true' },
-      ],
-      styles: [
-        { label: 'Classic', href: '/men?style=classic' },
-        { label: 'Vintage', href: '/men?style=vintage' },
-        { label: 'Biker', href: '/men?style=biker' },
-        { label: 'Minimal', href: '/men?style=minimal' },
-        { label: 'Luxury', href: '/men?style=luxury' },
-      ],
-      shopBy: [
-        { label: 'Black Leather', href: '/men?leatherFamily=black' },
-        { label: 'Brown Leather', href: '/men?leatherFamily=brown' },
-        { label: 'Suede', href: '/men?leatherFamily=suede' },
-        { label: 'Premium', href: '/men?leatherFamily=premium' },
-      ],
-      featured: {
-        title: 'THE MILANESE CUT',
-        description: 'Handcrafted calfskin and lambskin silhouettes engineered for effortless elegance.',
-        imageUrl: 'https://images.unsplash.com/photo-1520975954732-35dd22299614?q=80&w=1200&auto=format&fit=crop',
-        ctaText: 'SHOP MEN',
-        href: '/men',
-        tag: 'Atelier Curated',
-      },
-    };
-
-    const womenPayload = {
-      id: 'women',
-      label: 'WOMEN',
-      href: '/women',
-      categories: [
-        { label: 'Sculpted Bikers', href: '/women/biker' },
-        { label: 'Nappa Bombers', href: '/women/bomber' },
-        { label: 'Leather Coats', href: '/women/leather-coats' },
-        { label: 'Leather Blazers', href: '/women/leather-blazers' },
-      ],
-      styles: [
-        { label: 'Architectural', href: '/women?style=architectural' },
-        { label: 'Fitted', href: '/women?style=fitted' },
-        { label: 'Minimalist', href: '/women?style=minimalist' },
-      ],
-      featured: {
-        title: 'SCULPTED SILHOUETTES',
-        description: 'Sensual architectural lines cut from ultralight plunge lambskin.',
-        imageUrl: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?q=80&w=1200&auto=format&fit=crop',
-        ctaText: 'SHOP WOMEN',
-        href: '/women',
-        tag: 'New Capsule',
-      },
-    };
-
     await prisma.navigationMenu.upsert({
       where: { menuKey: 'men' },
-      update: { payload: menPayload },
-      create: { menuKey: 'men', payload: menPayload },
+      update: { payload: { id: 'men', label: 'Men' } },
+      create: {
+        menuKey: 'men',
+        department: 'men',
+        slug: 'men',
+        name: 'Men Navigation',
+        payload: { id: 'men', label: 'Men' },
+      },
     });
 
     await prisma.navigationMenu.upsert({
       where: { menuKey: 'women' },
-      update: { payload: womenPayload },
-      create: { menuKey: 'women', payload: womenPayload },
+      update: { payload: { id: 'women', label: 'Women' } },
+      create: {
+        menuKey: 'women',
+        department: 'women',
+        slug: 'women',
+        name: 'Women Navigation',
+        payload: { id: 'women', label: 'Women' },
+      },
     });
 
     logger.info('============================================================');

@@ -60,6 +60,8 @@ const corsOptions = {
     'Accept',
     'x-market',
     'X-Market',
+    'x-locale',
+    'X-Locale',
   ],
   optionsSuccessStatus: 204,
 };

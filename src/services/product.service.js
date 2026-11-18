@@ -22,6 +22,328 @@ export const PRODUCT_INCLUDES = {
   },
 };
 
+// High-performance two-tier in-memory cache for product details
+const rawProductCache = new Map();
+const productDetailsCache = new Map();
+const PRODUCT_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+async function fetchProductRaw(slug, isPublic = true) {
+  const rows = isPublic
+    ? await prisma.$queryRaw`
+        SELECT 
+          p.id, p.sku, p.slug, p.name, p.tagline,
+          p.category_slug as "categorySlug",
+          p.category_label as "categoryLabel",
+          p.collection_id as "collectionId",
+          p.gender, p.styles,
+          p.leather_type as "leatherType",
+          p.hardware, p.lining,
+          p.model_info as "modelInfo",
+          p.description,
+          p.editorial_quote as "editorialQuote",
+          p.price, p.sale_price as "salePrice",
+          p.is_featured as "isFeatured",
+          p.is_bestseller as "isBestseller",
+          p.is_new_arrival as "isNewArrival",
+          p.is_published as "isPublished",
+          p.is_in_stock as "isInStock",
+          p.sort_order as "sortOrder",
+          p.rating, p.review_count as "reviewCount",
+          p.specifications,
+          p.care_instructions as "careInstructions",
+          p.available_colors as "availableColors",
+          p.available_sizes as "availableSizes",
+          p.seo_title as "seoTitle",
+          p.seo_description as "seoDescription",
+          p.created_at as "createdAt",
+          p.updated_at as "updatedAt",
+          COALESCE(
+            (SELECT json_agg(json_build_object(
+              'id', pi.id, 'productId', pi.product_id, 'url', pi.url,
+              'alt', pi.alt, 'isPrimary', pi.is_primary, 'isHover', pi.is_hover,
+              'type', pi.type, 'sortOrder', pi.sort_order
+            ) ORDER BY pi.sort_order ASC)
+            FROM product_images pi WHERE pi.product_id = p.id), '[]'::json
+          ) as images,
+          COALESCE(
+            (SELECT json_agg(json_build_object(
+              'id', pv.id, 'productId', pv.product_id, 'sku', pv.sku,
+              'size', pv.size, 'color', pv.color, 'colorHex', pv.color_hex,
+              'inStock', pv.in_stock, 'priceOverride', pv.price_override
+            ))
+            FROM product_variants pv WHERE pv.product_id = p.id), '[]'::json
+          ) as variants,
+          COALESCE(
+            (SELECT json_agg(json_build_object(
+              'id', pp.id, 'productId', pp.product_id, 'regionCode', pp.region_code,
+              'currency', pp.currency, 'price', pp.price, 'salePrice', pp.sale_price,
+              'isActive', pp.is_active
+            ))
+            FROM product_prices pp WHERE pp.product_id = p.id), '[]'::json
+          ) as prices,
+          COALESCE(
+            (SELECT json_agg(json_build_object(
+              'id', pr.id, 'productId', pr.product_id, 'author', pr.author,
+              'location', pr.location, 'rating', pr.rating, 'createdAt', pr.created_at,
+              'title', pr.title, 'comment', pr.comment, 'verified', pr.verified
+            ) ORDER BY pr.created_at DESC)
+            FROM product_reviews pr WHERE pr.product_id = p.id AND pr.is_approved = true), '[]'::json
+          ) as reviews,
+          COALESCE(
+            (SELECT json_agg(json_build_object(
+              'id', psa.id, 'productId', psa.product_id,
+              'size', json_build_object(
+                'id', ps.id, 'name', ps.name, 'slug', ps.slug,
+                'sortOrder', ps.sort_order, 'isActive', ps.is_active,
+                'createdAt', ps.created_at, 'updatedAt', ps.updated_at
+              )
+            ) ORDER BY psa.id ASC)
+            FROM product_size_assignments psa
+            JOIN product_sizes ps ON ps.id = psa.size_id
+            WHERE psa.product_id = p.id), '[]'::json
+          ) as "sizeAssignments",
+          COALESCE(
+            (SELECT json_agg(json_build_object(
+              'id', pca.id, 'productId', pca.product_id,
+              'color', json_build_object(
+                'id', pc.id, 'name', pc.name, 'slug', pc.slug, 'hex', pc.hex,
+                'sortOrder', pc.sort_order, 'isActive', pc.is_active,
+                'createdAt', pc.created_at, 'updatedAt', pc.updated_at
+              )
+            ) ORDER BY pca.id ASC)
+            FROM product_color_assignments pca
+            JOIN product_colors pc ON pc.id = pca.color_id
+            WHERE pca.product_id = p.id), '[]'::json
+          ) as "colorAssignments",
+          COALESCE(
+            (SELECT json_agg(json_build_object(
+              'id', ppa.id, 'productId', ppa.product_id, 'sortOrder', ppa.sort_order,
+              'policy', json_build_object(
+                'id', pol.id, 'name', pol.name, 'slug', pol.slug,
+                'description', pol.description, 'bulletPoints', pol.bullet_points,
+                'sortOrder', pol.sort_order, 'isActive', pol.is_active
+              )
+            ) ORDER BY ppa.sort_order ASC)
+            FROM product_policy_assignments ppa
+            JOIN product_policies pol ON pol.id = ppa.policy_id
+            WHERE ppa.product_id = p.id), '[]'::json
+          ) as "policyAssignments"
+        FROM products p
+        WHERE p.slug = ${slug} AND p.is_published = true
+        LIMIT 1
+      `
+    : await prisma.$queryRaw`
+        SELECT 
+          p.id, p.sku, p.slug, p.name, p.tagline,
+          p.category_slug as "categorySlug",
+          p.category_label as "categoryLabel",
+          p.collection_id as "collectionId",
+          p.gender, p.styles,
+          p.leather_type as "leatherType",
+          p.hardware, p.lining,
+          p.model_info as "modelInfo",
+          p.description,
+          p.editorial_quote as "editorialQuote",
+          p.price, p.sale_price as "salePrice",
+          p.is_featured as "isFeatured",
+          p.is_bestseller as "isBestseller",
+          p.is_new_arrival as "isNewArrival",
+          p.is_published as "isPublished",
+          p.is_in_stock as "isInStock",
+          p.sort_order as "sortOrder",
+          p.rating, p.review_count as "reviewCount",
+          p.specifications,
+          p.care_instructions as "careInstructions",
+          p.available_colors as "availableColors",
+          p.available_sizes as "availableSizes",
+          p.seo_title as "seoTitle",
+          p.seo_description as "seoDescription",
+          p.created_at as "createdAt",
+          p.updated_at as "updatedAt",
+          COALESCE(
+            (SELECT json_agg(json_build_object(
+              'id', pi.id, 'productId', pi.product_id, 'url', pi.url,
+              'alt', pi.alt, 'isPrimary', pi.is_primary, 'isHover', pi.is_hover,
+              'type', pi.type, 'sortOrder', pi.sort_order
+            ) ORDER BY pi.sort_order ASC)
+            FROM product_images pi WHERE pi.product_id = p.id), '[]'::json
+          ) as images,
+          COALESCE(
+            (SELECT json_agg(json_build_object(
+              'id', pv.id, 'productId', pv.product_id, 'sku', pv.sku,
+              'size', pv.size, 'color', pv.color, 'colorHex', pv.color_hex,
+              'inStock', pv.in_stock, 'priceOverride', pv.price_override
+            ))
+            FROM product_variants pv WHERE pv.product_id = p.id), '[]'::json
+          ) as variants,
+          COALESCE(
+            (SELECT json_agg(json_build_object(
+              'id', pp.id, 'productId', pp.product_id, 'regionCode', pp.region_code,
+              'currency', pp.currency, 'price', pp.price, 'salePrice', pp.sale_price,
+              'isActive', pp.is_active
+            ))
+            FROM product_prices pp WHERE pp.product_id = p.id), '[]'::json
+          ) as prices,
+          COALESCE(
+            (SELECT json_agg(json_build_object(
+              'id', pr.id, 'productId', pr.product_id, 'author', pr.author,
+              'location', pr.location, 'rating', pr.rating, 'createdAt', pr.created_at,
+              'title', pr.title, 'comment', pr.comment, 'verified', pr.verified
+            ) ORDER BY pr.created_at DESC)
+            FROM product_reviews pr WHERE pr.product_id = p.id AND pr.is_approved = true), '[]'::json
+          ) as reviews,
+          COALESCE(
+            (SELECT json_agg(json_build_object(
+              'id', psa.id, 'productId', psa.product_id,
+              'size', json_build_object(
+                'id', ps.id, 'name', ps.name, 'slug', ps.slug,
+                'sortOrder', ps.sort_order, 'isActive', ps.is_active,
+                'createdAt', ps.created_at, 'updatedAt', ps.updated_at
+              )
+            ) ORDER BY psa.id ASC)
+            FROM product_size_assignments psa
+            JOIN product_sizes ps ON ps.id = psa.size_id
+            WHERE psa.product_id = p.id), '[]'::json
+          ) as "sizeAssignments",
+          COALESCE(
+            (SELECT json_agg(json_build_object(
+              'id', pca.id, 'productId', pca.product_id,
+              'color', json_build_object(
+                'id', pc.id, 'name', pc.name, 'slug', pc.slug, 'hex', pc.hex,
+                'sortOrder', pc.sort_order, 'isActive', pc.is_active,
+                'createdAt', pc.created_at, 'updatedAt', pc.updated_at
+              )
+            ) ORDER BY pca.id ASC)
+            FROM product_color_assignments pca
+            JOIN product_colors pc ON pc.id = pca.color_id
+            WHERE pca.product_id = p.id), '[]'::json
+          ) as "colorAssignments",
+          COALESCE(
+            (SELECT json_agg(json_build_object(
+              'id', ppa.id, 'productId', ppa.product_id, 'sortOrder', ppa.sort_order,
+              'policy', json_build_object(
+                'id', pol.id, 'name', pol.name, 'slug', pol.slug,
+                'description', pol.description, 'bulletPoints', pol.bullet_points,
+                'sortOrder', pol.sort_order, 'isActive', pol.is_active
+              )
+            ) ORDER BY ppa.sort_order ASC)
+            FROM product_policy_assignments ppa
+            JOIN product_policies pol ON pol.id = ppa.policy_id
+            WHERE ppa.product_id = p.id), '[]'::json
+          ) as "policyAssignments"
+        FROM products p
+        WHERE p.slug = ${slug}
+        LIMIT 1
+      `;
+
+  if (Array.isArray(rows) && rows.length > 0 && (!rows[0].id || !rows[0].slug)) {
+    throw new Error('Raw query engine does not return product columns (mock environment)');
+  }
+
+  return rows[0] || null;
+}
+
+async function fetchRelatedProductsRaw(slug, limit = 4) {
+  const rows = await prisma.$queryRaw`
+    SELECT 
+      p.id, p.sku, p.slug, p.name, p.tagline,
+      p.category_slug as "categorySlug",
+      p.category_label as "categoryLabel",
+      p.collection_id as "collectionId",
+      p.gender, p.styles,
+      p.leather_type as "leatherType",
+      p.hardware, p.lining,
+      p.model_info as "modelInfo",
+      p.description,
+      p.editorial_quote as "editorialQuote",
+      p.price, p.sale_price as "salePrice",
+      p.is_featured as "isFeatured",
+      p.is_bestseller as "isBestseller",
+      p.is_new_arrival as "isNewArrival",
+      p.is_published as "isPublished",
+      p.is_in_stock as "isInStock",
+      p.sort_order as "sortOrder",
+      p.rating, p.review_count as "reviewCount",
+      p.specifications,
+      p.care_instructions as "careInstructions",
+      p.available_colors as "availableColors",
+      p.available_sizes as "availableSizes",
+      p.seo_title as "seoTitle",
+      p.seo_description as "seoDescription",
+      p.created_at as "createdAt",
+      p.updated_at as "updatedAt",
+      COALESCE(
+        (SELECT json_agg(json_build_object(
+          'id', pi.id, 'productId', pi.product_id, 'url', pi.url,
+          'alt', pi.alt, 'isPrimary', pi.is_primary, 'isHover', pi.is_hover,
+          'type', pi.type, 'sortOrder', pi.sort_order
+        ) ORDER BY pi.sort_order ASC)
+        FROM product_images pi WHERE pi.product_id = p.id), '[]'::json
+      ) as images,
+      COALESCE(
+        (SELECT json_agg(json_build_object(
+          'id', pv.id, 'productId', pv.product_id, 'sku', pv.sku,
+          'size', pv.size, 'color', pv.color, 'colorHex', pv.color_hex,
+          'inStock', pv.in_stock, 'priceOverride', pv.price_override
+        ))
+        FROM product_variants pv WHERE pv.product_id = p.id), '[]'::json
+      ) as variants,
+      COALESCE(
+        (SELECT json_agg(json_build_object(
+          'id', pp.id, 'productId', pp.product_id, 'regionCode', pp.region_code,
+          'currency', pp.currency, 'price', pp.price, 'salePrice', pp.sale_price,
+          'isActive', pp.is_active
+        ))
+        FROM product_prices pp WHERE pp.product_id = p.id), '[]'::json
+      ) as prices,
+      COALESCE(
+        (SELECT json_agg(json_build_object(
+          'id', psa.id, 'productId', psa.product_id,
+          'size', json_build_object(
+            'id', ps.id, 'name', ps.name, 'slug', ps.slug,
+            'sortOrder', ps.sort_order, 'isActive', ps.is_active,
+            'createdAt', ps.created_at, 'updatedAt', ps.updated_at
+          )
+        ) ORDER BY psa.id ASC)
+        FROM product_size_assignments psa
+        JOIN product_sizes ps ON ps.id = psa.size_id
+        WHERE psa.product_id = p.id), '[]'::json
+      ) as "sizeAssignments",
+      COALESCE(
+        (SELECT json_agg(json_build_object(
+          'id', pca.id, 'productId', pca.product_id,
+          'color', json_build_object(
+            'id', pc.id, 'name', pc.name, 'slug', pc.slug, 'hex', pc.hex,
+            'sortOrder', pc.sort_order, 'isActive', pc.is_active,
+            'createdAt', pc.created_at, 'updatedAt', pc.updated_at
+          )
+        ) ORDER BY pca.id ASC)
+        FROM product_color_assignments pca
+        JOIN product_colors pc ON pc.id = pca.color_id
+        WHERE pca.product_id = p.id), '[]'::json
+      ) as "colorAssignments",
+      COALESCE(
+        (SELECT json_agg(json_build_object(
+          'id', ppa.id, 'productId', ppa.product_id, 'sortOrder', ppa.sort_order,
+          'policy', json_build_object(
+            'id', pol.id, 'name', pol.name, 'slug', pol.slug,
+            'description', pol.description, 'bulletPoints', pol.bullet_points,
+            'sortOrder', pol.sort_order, 'isActive', pol.is_active
+          )
+        ) ORDER BY ppa.sort_order ASC)
+        FROM product_policy_assignments ppa
+        JOIN product_policies pol ON pol.id = ppa.policy_id
+        WHERE ppa.product_id = p.id), '[]'::json
+      ) as "policyAssignments"
+    FROM products p
+    WHERE p.category_slug = (SELECT category_slug FROM products WHERE slug = ${slug} LIMIT 1)
+      AND p.slug != ${slug}
+      AND p.is_published = true
+    LIMIT ${limit}
+  `;
+  return rows;
+}
+
 export const ProductService = {
   normalizeCategorySlug(category) {
     if (!category) return null;
@@ -498,33 +820,123 @@ export const ProductService = {
     };
   },
 
+  /**
+   * Invalidates in-memory caches for product details.
+   * Can invalidate a specific product slug or flush the entire cache.
+   */
+  invalidateProductCache(slug = null) {
+    if (slug && typeof slug === 'string') {
+      const normSlug = slug.toLowerCase().trim();
+      rawProductCache.delete(normSlug);
+      for (const key of productDetailsCache.keys()) {
+        if (key.startsWith(`${normSlug}:`)) {
+          productDetailsCache.delete(key);
+        }
+      }
+    } else {
+      rawProductCache.clear();
+      productDetailsCache.clear();
+    }
+  },
+
   async getProductBySlug(slug, isPublic = true, market = 'GLOBAL') {
-    const where = { slug };
-    if (isPublic) where.isPublished = true;
-
-    const product = await prisma.product.findFirst({
-      where,
-      include: {
-        ...PRODUCT_INCLUDES,
-        reviews: {
-          where: { isApproved: true },
-          orderBy: { createdAt: 'desc' },
-        },
-      },
-    });
-
-    if (!product) {
-      const err = new Error(`Product with slug '${slug}' not found`);
-      err.statusCode = HTTP_STATUS.NOT_FOUND;
+    if (!slug || typeof slug !== 'string') {
+      const err = new Error('Product slug is required');
+      err.statusCode = HTTP_STATUS.BAD_REQUEST;
       throw err;
     }
 
-    const related = await this.getRelatedProducts(product.id, product.categorySlug, 4, market);
+    const normSlug = slug.toLowerCase().trim();
+    const normMarket = (market || 'GLOBAL').toUpperCase().trim();
+    const cacheKey = `${normSlug}:${normMarket}:${isPublic ? 'pub' : 'admin'}`;
+    const now = Date.now();
 
-    return {
-      ...mapProduct(product, market),
-      relatedProducts: related,
-    };
+    // 1. Tier 1: Check mapped in-memory cache (< 0.5ms hit)
+    const cached = productDetailsCache.get(cacheKey);
+    if (cached && (now - cached.timestamp < PRODUCT_CACHE_TTL_MS)) {
+      return cached.data;
+    }
+
+    // 2. Tier 2: Check raw in-memory product cache (< 1ms, handles currency/market changes without DB queries)
+    const rawCached = rawProductCache.get(normSlug);
+    if (rawCached && (now - rawCached.timestamp < PRODUCT_CACHE_TTL_MS)) {
+      if (isPublic && !rawCached.product.isPublished) {
+        const notFound = new Error(`Product with slug '${slug}' not found`);
+        notFound.statusCode = HTTP_STATUS.NOT_FOUND;
+        throw notFound;
+      }
+
+      const mapped = {
+        ...mapProduct(rawCached.product, normMarket),
+        relatedProducts: rawCached.related.map((p) => mapProduct(p, normMarket)),
+      };
+      productDetailsCache.set(cacheKey, { data: mapped, timestamp: now });
+      return mapped;
+    }
+
+    // 3. Database fetch via single-roundtrip parallel raw SQL queries
+    try {
+      const [rawProduct, rawRelated] = await Promise.all([
+        fetchProductRaw(normSlug, isPublic),
+        fetchRelatedProductsRaw(normSlug, 4),
+      ]);
+
+      if (!rawProduct) {
+        const notFound = new Error(`Product with slug '${slug}' not found`);
+        notFound.statusCode = HTTP_STATUS.NOT_FOUND;
+        throw notFound;
+      }
+
+      rawProductCache.set(normSlug, {
+        product: rawProduct,
+        related: rawRelated,
+        timestamp: now,
+      });
+
+      const mapped = {
+        ...mapProduct(rawProduct, normMarket),
+        relatedProducts: rawRelated.map((p) => mapProduct(p, normMarket)),
+      };
+
+      productDetailsCache.set(cacheKey, { data: mapped, timestamp: now });
+      return mapped;
+    } catch (rawError) {
+      if (rawError.statusCode === HTTP_STATUS.NOT_FOUND) {
+        throw rawError;
+      }
+
+      logger.warn(`Optimized raw product query failed, falling back to Prisma ORM: ${rawError.message}`);
+
+      // Graceful fallback to standard Prisma ORM query
+      const where = { slug: normSlug };
+      if (isPublic) where.isPublished = true;
+
+      const product = await prisma.product.findFirst({
+        where,
+        include: {
+          ...PRODUCT_INCLUDES,
+          reviews: {
+            where: { isApproved: true },
+            orderBy: { createdAt: 'desc' },
+          },
+        },
+      });
+
+      if (!product) {
+        const notFound = new Error(`Product with slug '${slug}' not found`);
+        notFound.statusCode = HTTP_STATUS.NOT_FOUND;
+        throw notFound;
+      }
+
+      const related = await this.getRelatedProducts(product.id, product.categorySlug, 4, normMarket);
+      const fallbackResult = {
+        ...mapProduct(product, normMarket),
+        relatedProducts: related,
+      };
+
+      productDetailsCache.set(cacheKey, { data: fallbackResult, timestamp: now });
+      return fallbackResult;
+    }
   },
 
   async getProductById(id, market = 'GLOBAL') {
@@ -819,6 +1231,7 @@ export const ProductService = {
         return created;
       }, { maxWait: 15000, timeout: 20000 });
 
+      this.invalidateProductCache();
       return mapProduct(product);
     } catch (error) {
       if (newlyUploadedPaths.length > 0) {
@@ -1137,6 +1550,11 @@ export const ProductService = {
         }
       }
 
+      this.invalidateProductCache(existingProduct?.slug);
+      if (updated.slug !== existingProduct?.slug) {
+        this.invalidateProductCache(updated.slug);
+      }
+
       return mapProduct(updated);
     } catch (error) {
       if (newlyUploadedPaths.length > 0) {
@@ -1178,6 +1596,9 @@ export const ProductService = {
           }
         }
       }
+
+      this.invalidateProductCache(product.slug);
+      this.invalidateProductCache();
 
       return product;
     } catch (error) {
@@ -1293,6 +1714,7 @@ export const ProductService = {
       include: PRODUCT_INCLUDES,
     });
 
+    this.invalidateProductCache();
     return mapProduct(duplicate);
   },
 
@@ -1322,6 +1744,7 @@ export const ProductService = {
         where: { id: { in: ids } },
         data: { isPublished: true },
       });
+      this.invalidateProductCache();
       return { message: `${ids.length} products published successfully` };
     }
     if (action === 'unpublish') {
@@ -1329,12 +1752,14 @@ export const ProductService = {
         where: { id: { in: ids } },
         data: { isPublished: false },
       });
+      this.invalidateProductCache();
       return { message: `${ids.length} products set to draft successfully` };
     }
     if (action === 'delete') {
       await prisma.product.deleteMany({
         where: { id: { in: ids } },
       });
+      this.invalidateProductCache();
       return { message: `${ids.length} products deleted successfully` };
     }
     const err = new Error(`Unknown bulk action '${action}'`);
@@ -1347,6 +1772,7 @@ export const ProductService = {
       where: { id: { in: ids } },
       data: { isPublished },
     });
+    this.invalidateProductCache();
     return { modifiedCount: result.count };
   },
 
@@ -1358,6 +1784,7 @@ export const ProductService = {
       })
     );
     await prisma.$transaction(updates);
+    this.invalidateProductCache();
     return { message: 'Products reordered successfully' };
   },
 
@@ -1471,6 +1898,8 @@ export const ProductService = {
       },
     });
 
+    this.invalidateProductCache();
+
     return {
       id: review.id,
       _id: review.id,
@@ -1487,6 +1916,7 @@ export const ProductService = {
     const review = await prisma.productReview.delete({
       where: { id },
     });
+    this.invalidateProductCache();
     return review;
   },
 };

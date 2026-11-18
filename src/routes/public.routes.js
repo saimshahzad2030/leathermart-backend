@@ -20,8 +20,9 @@ import { createCommissionSchema } from '../validators/commission.validator.js';
 import { subscribeNewsletterSchema } from '../validators/cms.validator.js';
 import { createContactMessageSchema } from '../validators/contact.validator.js';
 import { updateFooterSchema } from '../validators/settings.validator.js';
-
+import { NavigationController } from '../controllers/navigation.controller.js';
 const router = Router();
+router.get('/navigation/mega-menu', NavigationController.getMegaMenu);
 
 // 1. Content & Layout APIs
 router.get('/content/homepage', CmsController.getHomepageContent);
