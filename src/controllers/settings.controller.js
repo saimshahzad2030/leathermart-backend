@@ -1,5 +1,8 @@
 import { SettingsService } from '../services/settings.service.js';
+import { CategoryService } from '../services/category.service.js';
+import { NavigationService } from '../services/navigation.service.js';
 import { ApiResponse } from '../utils/apiResponse.js';
+import { HTTP_STATUS } from '../config/constants.js';
 
 export const SettingsController = {
   // Public
@@ -53,8 +56,17 @@ export const SettingsController = {
 
   async getNavigation(req, res, next) {
     try {
-      const menu = await SettingsService.getNavigationMenu(req.query.menu);
-      return ApiResponse.success(res, { data: menu });
+      const deptParam = (req.query.department || req.query.menu || '').toLowerCase().trim();
+      if (deptParam && deptParam !== 'men' && deptParam !== 'women' && deptParam !== 'all') {
+        const err = new Error(`Invalid department '${deptParam}'. Supported values: 'men', 'women'.`);
+        err.statusCode = HTTP_STATUS.BAD_REQUEST;
+        err.errorCode = 'ERR_INVALID_DEPARTMENT';
+        throw err;
+      }
+
+      res.set('Cache-Control', 'public, max-age=60, stale-while-revalidate=120');
+      const navigation = await NavigationService.getPublicNavigation(deptParam === 'all' ? null : deptParam || null);
+      return ApiResponse.success(res, { data: navigation });
     } catch (err) {
       next(err);
     }

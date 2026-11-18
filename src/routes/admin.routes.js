@@ -8,6 +8,7 @@ import { CategoryController } from '../controllers/category.controller.js';
 import { CmsController } from '../controllers/cms.controller.js';
 import { CommissionController } from '../controllers/commission.controller.js';
 import { SettingsController } from '../controllers/settings.controller.js';
+import { NavigationController } from '../controllers/navigation.controller.js';
 import { MediaController } from '../controllers/media.controller.js';
 import { ContactController } from '../controllers/contact.controller.js';
 
@@ -71,6 +72,18 @@ import {
   updateSearchKeywordsSchema,
   updateFooterSchema,
 } from '../validators/settings.validator.js';
+import {
+  createMenuSchema,
+  updateMenuSchema,
+  createSectionSchema,
+  updateSectionSchema,
+  createItemSchema,
+  updateItemSchema,
+  createFeatureSchema,
+  updateFeatureSchema,
+  reorderNavigationSchema,
+  publishMenuSchema,
+} from '../validators/navigation.validator.js';
 
 const router = Router();
 
@@ -523,11 +536,136 @@ router.put(
   validate(updateSearchKeywordsSchema),
   SettingsController.updateSearchKeywords
 );
-router.get('/navigation/mega-menu', SettingsController.getNavigation);
+router.get('/navigation/mega-menu', NavigationController.getMegaMenu);
 router.put(
   '/navigation/mega-menu/:menuKey',
-  authorize(ROLES.SUPER_ADMIN, ROLES.CONTENT_EDITOR),
-  SettingsController.updateNavigationMenu
+  authorize(ROLES.SUPER_ADMIN, ROLES.STORE_MANAGER, ROLES.CONTENT_EDITOR),
+  NavigationController.updateMegaMenu
+);
+
+// Navigation CMS - Granular Menus CRUD & Publishing
+router.get(
+  '/navigation/menus',
+  authorize(ROLES.SUPER_ADMIN, ROLES.STORE_MANAGER, ROLES.CONTENT_EDITOR),
+  NavigationController.listMenus
+);
+router.post(
+  '/navigation/menus',
+  authorize(ROLES.SUPER_ADMIN, ROLES.STORE_MANAGER, ROLES.CONTENT_EDITOR),
+  validate(createMenuSchema),
+  NavigationController.createMenu
+);
+router.get(
+  '/navigation/menus/:id',
+  authorize(ROLES.SUPER_ADMIN, ROLES.STORE_MANAGER, ROLES.CONTENT_EDITOR),
+  NavigationController.getMenuById
+);
+router.put(
+  '/navigation/menus/:id',
+  authorize(ROLES.SUPER_ADMIN, ROLES.STORE_MANAGER, ROLES.CONTENT_EDITOR),
+  validate(updateMenuSchema),
+  NavigationController.updateMenu
+);
+router.delete(
+  '/navigation/menus/:id',
+  authorize(ROLES.SUPER_ADMIN, ROLES.STORE_MANAGER),
+  NavigationController.deleteMenu
+);
+router.post(
+  '/navigation/menus/:id/publish',
+  authorize(ROLES.SUPER_ADMIN, ROLES.STORE_MANAGER, ROLES.CONTENT_EDITOR),
+  validate(publishMenuSchema),
+  NavigationController.publishMenu
+);
+
+// Navigation CMS - Sections CRUD & Reordering
+router.get(
+  '/navigation/menus/:menuId/sections',
+  authorize(ROLES.SUPER_ADMIN, ROLES.STORE_MANAGER, ROLES.CONTENT_EDITOR),
+  NavigationController.listSections
+);
+router.post(
+  '/navigation/menus/:menuId/sections',
+  authorize(ROLES.SUPER_ADMIN, ROLES.STORE_MANAGER, ROLES.CONTENT_EDITOR),
+  validate(createSectionSchema),
+  NavigationController.createSection
+);
+router.put(
+  '/navigation/sections/reorder',
+  authorize(ROLES.SUPER_ADMIN, ROLES.STORE_MANAGER, ROLES.CONTENT_EDITOR),
+  validate(reorderNavigationSchema),
+  NavigationController.reorderSections
+);
+router.put(
+  '/navigation/sections/:id',
+  authorize(ROLES.SUPER_ADMIN, ROLES.STORE_MANAGER, ROLES.CONTENT_EDITOR),
+  validate(updateSectionSchema),
+  NavigationController.updateSection
+);
+router.delete(
+  '/navigation/sections/:id',
+  authorize(ROLES.SUPER_ADMIN, ROLES.STORE_MANAGER),
+  NavigationController.deleteSection
+);
+
+// Navigation CMS - Items CRUD & Reordering
+router.get(
+  '/navigation/sections/:sectionId/items',
+  authorize(ROLES.SUPER_ADMIN, ROLES.STORE_MANAGER, ROLES.CONTENT_EDITOR),
+  NavigationController.listItems
+);
+router.post(
+  '/navigation/sections/:sectionId/items',
+  authorize(ROLES.SUPER_ADMIN, ROLES.STORE_MANAGER, ROLES.CONTENT_EDITOR),
+  validate(createItemSchema),
+  NavigationController.createItem
+);
+router.put(
+  '/navigation/items/reorder',
+  authorize(ROLES.SUPER_ADMIN, ROLES.STORE_MANAGER, ROLES.CONTENT_EDITOR),
+  validate(reorderNavigationSchema),
+  NavigationController.reorderItems
+);
+router.put(
+  '/navigation/items/:id',
+  authorize(ROLES.SUPER_ADMIN, ROLES.STORE_MANAGER, ROLES.CONTENT_EDITOR),
+  validate(updateItemSchema),
+  NavigationController.updateItem
+);
+router.delete(
+  '/navigation/items/:id',
+  authorize(ROLES.SUPER_ADMIN, ROLES.STORE_MANAGER),
+  NavigationController.deleteItem
+);
+
+// Navigation CMS - Promotional Features CRUD & Reordering
+router.get(
+  '/navigation/menus/:menuId/features',
+  authorize(ROLES.SUPER_ADMIN, ROLES.STORE_MANAGER, ROLES.CONTENT_EDITOR),
+  NavigationController.listFeatures
+);
+router.post(
+  '/navigation/menus/:menuId/features',
+  authorize(ROLES.SUPER_ADMIN, ROLES.STORE_MANAGER, ROLES.CONTENT_EDITOR),
+  validate(createFeatureSchema),
+  NavigationController.createFeature
+);
+router.put(
+  '/navigation/features/reorder',
+  authorize(ROLES.SUPER_ADMIN, ROLES.STORE_MANAGER, ROLES.CONTENT_EDITOR),
+  validate(reorderNavigationSchema),
+  NavigationController.reorderFeatures
+);
+router.put(
+  '/navigation/features/:id',
+  authorize(ROLES.SUPER_ADMIN, ROLES.STORE_MANAGER, ROLES.CONTENT_EDITOR),
+  validate(updateFeatureSchema),
+  NavigationController.updateFeature
+);
+router.delete(
+  '/navigation/features/:id',
+  authorize(ROLES.SUPER_ADMIN, ROLES.STORE_MANAGER),
+  NavigationController.deleteFeature
 );
 
 // ==========================================

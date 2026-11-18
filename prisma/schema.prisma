@@ -58,7 +58,8 @@ model Category {
   createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  products Product[]
+  products        Product[]
+  navigationItems NavigationItem[]
 
   @@map("categories")
 }
@@ -128,6 +129,7 @@ model Product {
   sizeAssignments   ProductSizeAssignment[]
   colorAssignments  ProductColorAssignment[]
   policyAssignments ProductPolicyAssignment[]
+  navigationItems   NavigationItem[]
 
   @@index([categorySlug])
   @@index([collectionId])
@@ -342,15 +344,101 @@ model SiteSetting {
   @@map("site_settings")
 }
 
-// 13. Navigation Menus Table
+// 13. Navigation Menus & Navigation CMS System
+enum NavigationItemType {
+  CUSTOM_LINK
+  CATEGORY
+  PRODUCT
+}
+
 model NavigationMenu {
-  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  menuKey   String   @unique @map("menu_key") @db.VarChar(50)
-  payload   Json
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id         String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name       String              @db.VarChar(150)
+  department String              @unique @db.VarChar(50)
+  slug       String              @unique @db.VarChar(100)
+  isActive   Boolean             @default(true) @map("is_active")
+  isDraft    Boolean             @default(false) @map("is_draft")
+  createdAt  DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  // Retain optional legacy fields for backward-compatibility with existing data
+  menuKey      String?             @unique @map("menu_key") @db.VarChar(50)
+  payload      Json?
+  draftPayload Json?               @map("draft_payload")
+
+  sections   NavigationSection[]
+  features   NavigationFeature[]
 
   @@map("navigation_menus")
+}
+
+model NavigationSection {
+  id               String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  navigationMenuId String           @map("navigation_menu_id") @db.Uuid
+  title            String           @db.VarChar(150)
+  slug             String           @db.VarChar(100)
+  sortOrder        Int              @default(0) @map("sort_order")
+  isActive         Boolean          @default(true) @map("is_active")
+  isDraft          Boolean          @default(false) @map("is_draft")
+  createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  menu  NavigationMenu   @relation(fields: [navigationMenuId], references: [id], onDelete: Cascade)
+  items NavigationItem[]
+
+  @@unique([navigationMenuId, slug])
+  @@index([navigationMenuId])
+  @@map("navigation_sections")
+}
+
+model NavigationItem {
+  id                  String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  legacyId            String?            @map("legacy_id") @db.VarChar(100)
+  navigationSectionId String             @map("navigation_section_id") @db.Uuid
+  label               String             @db.VarChar(150)
+  labelKey            String?            @map("label_key") @db.VarChar(100)
+  href                String             @db.VarChar(500)
+  itemType            NavigationItemType @default(CUSTOM_LINK) @map("item_type")
+  categoryId          String?            @map("category_id") @db.Uuid
+  productId           String?            @map("product_id") @db.Uuid
+  badge               String?            @db.VarChar(50)
+  sortOrder           Int                @default(0) @map("sort_order")
+  isActive            Boolean            @default(true) @map("is_active")
+  isFeatured          Boolean            @default(false) @map("is_featured")
+  isDraft             Boolean            @default(false) @map("is_draft")
+  createdAt           DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  section  NavigationSection @relation(fields: [navigationSectionId], references: [id], onDelete: Cascade)
+  category Category?         @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  product  Product?          @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([navigationSectionId])
+  @@index([categoryId])
+  @@index([productId])
+  @@map("navigation_items")
+}
+
+model NavigationFeature {
+  id               String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  navigationMenuId String         @map("navigation_menu_id") @db.Uuid
+  title            String         @db.VarChar(200)
+  description      String?        @db.Text
+  image            String         @db.VarChar(1000)
+  href             String         @db.VarChar(500)
+  badge            String?        @db.VarChar(100)
+  ctaText          String?        @map("cta_text") @db.VarChar(100)
+  ctaTextKey       String?        @map("cta_text_key") @db.VarChar(100)
+  sortOrder        Int            @default(0) @map("sort_order")
+  isActive         Boolean        @default(true) @map("is_active")
+  isDraft          Boolean        @default(false) @map("is_draft")
+  createdAt        DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  menu NavigationMenu @relation(fields: [navigationMenuId], references: [id], onDelete: Cascade)
+
+  @@index([navigationMenuId])
+  @@map("navigation_features")
 }
 
 // 14. Testimonials Table

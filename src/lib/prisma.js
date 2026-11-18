@@ -1,6 +1,5 @@
-import 'dotenv/config';
 import { PrismaClient } from '@prisma/client';
-import { env } from '../config/env.js';
+import { env, getDatabaseHost } from '../config/env.js';
 import { logger } from '../utils/logger.js';
 
 const globalForPrisma = globalThis;
@@ -18,15 +17,16 @@ globalForPrisma.prisma = prisma;
 
 export async function checkPrismaConnection() {
   if (!connectionUrl && !process.env.DATABASE_URL) {
-    const msg = 'DATABASE_URL environment variable is missing. Please configure it in Vercel project settings.';
+    const msg = 'DATABASE_URL environment variable is missing. Please configure it in your environment settings.';
     logger.warn(msg);
     return { connected: false, message: msg };
   }
+  const host = env.DB_HOST || getDatabaseHost(connectionUrl);
   try {
-    await prisma.$queryRaw`SELECT 1`;
-    return { connected: true, message: 'Connected to Supabase PostgreSQL (via Prisma)' };
+    await prisma.$queryRaw`SELECT 1 as connected`;
+    return { connected: true, host, message: `Connected to PostgreSQL at ${host} (via Prisma)` };
   } catch (err) {
-    logger.warn(`Prisma connection check warning: ${err.message}`);
-    return { connected: false, message: err.message };
+    logger.warn(`Prisma connection check warning for host ${host}: ${err.message}`);
+    return { connected: false, host, message: err.message };
   }
 }

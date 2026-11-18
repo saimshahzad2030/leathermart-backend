@@ -61,6 +61,19 @@ export function errorHandler(err, req, res, next) {
     });
   }
 
+  // Prisma Connection Error (Code P1001 / PrismaClientInitializationError)
+  if (
+    err.name === 'PrismaClientInitializationError' ||
+    err.code === 'P1001' ||
+    err.message?.includes("Can't reach database server")
+  ) {
+    return ApiResponse.error(res, {
+      message: 'Database service is currently unreachable. Please check connection configuration.',
+      errorCode: 'ERR_DATABASE_UNAVAILABLE',
+      statusCode: HTTP_STATUS.SERVICE_UNAVAILABLE,
+    });
+  }
+
   // Prisma Record Not Found (Code P2025)
   if (err.code === 'P2025') {
     return ApiResponse.error(res, {
