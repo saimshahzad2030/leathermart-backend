@@ -10,6 +10,11 @@ const router = Router();
 router.get('/health', async (req, res) => {
   const dbCheck = await checkPrismaConnection();
 
+  const sanitizeError = (msg) => {
+    if (!msg || typeof msg !== 'string') return null;
+    return msg.replace(/:\/\/[^:]+:[^@]+@/g, '://***:***@');
+  };
+
   return ApiResponse.success(res, {
     message: 'Atelier Valenti Milano API is operational and healthy',
     data: {
@@ -17,9 +22,20 @@ router.get('/health', async (req, res) => {
       timestamp: new Date().toISOString(),
       uptime: process.uptime(),
       database: dbCheck.connected ? 'connected' : 'disconnected',
+      databaseDetails: {
+        host: dbCheck.host || 'NONE',
+        hasDatabaseUrl: Boolean(process.env.DATABASE_URL),
+        hasDirectUrl: Boolean(process.env.DIRECT_URL),
+        connectionMessage: sanitizeError(dbCheck.message),
+      },
       orm: 'Prisma',
       databaseType: 'Supabase PostgreSQL',
       environment: process.env.NODE_ENV || 'development',
+      vercel: {
+        isServerless: Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME),
+        environment: process.env.VERCEL_ENV || 'non-vercel',
+        region: process.env.VERCEL_REGION || 'local',
+      },
     },
   });
 });

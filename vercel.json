@@ -1,6 +1,7 @@
 {
   "version": 2,
   "buildCommand": "npm run build",
+  "regions": ["hnd1"],
   "rewrites": [
     {
       "source": "/(.*)",
